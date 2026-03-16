@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --color-metro-green: #a4c400;
+  --color-metro-blue: #00aba9;
+  --color-metro-orange: #f09609;
+  --color-metro-red: #e51400;
+  --color-metro-cyan: #1ba1e2;
+}
+
+/* Custom scrollbar for the panorama view */
+::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+.panorama-container {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.panorama-section {
+  flex: 0 0 auto;
+  width: 100vw;
+  max-width: 1200px;
+  height: 100vh;
+  padding: 2rem;
+  scroll-snap-align: start;
+}
+
+@media (min-width: 1024px) {
+  .panorama-section {
+    width: auto;
+    min-width: 600px;
+  }
+}

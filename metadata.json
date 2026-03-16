@@ -1,0 +1,5 @@
+{
+  "name": "Metro IoT Dashboard",
+  "description": "A production-ready IoT dashboard with a Metro UI aesthetic, integrated with Flespi.io.",
+  "requestFramePermissions": ["geolocation"]
+}
