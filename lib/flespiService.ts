@@ -52,8 +52,12 @@ export class FlespiService {
     return data.result[0]?.telemetry || {};
   }
 
-  static async getDeviceMessages(token: string, deviceId: number, limit = 100): Promise<FlespiMessage[]> {
-    const res = await fetch(`${this.baseUrl}/devices/${deviceId}/messages?limit=${limit}`, {
+  static async getDeviceMessages(token: string, deviceId: number, limit = 100, from?: number, to?: number): Promise<FlespiMessage[]> {
+    let url = `${this.baseUrl}/devices/${deviceId}/messages?limit=${limit}`;
+    if (from) url += `&from=${from}`;
+    if (to) url += `&to=${to}`;
+    
+    const res = await fetch(url, {
       headers: this.getHeaders(token),
     });
     if (!res.ok) {

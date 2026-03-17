@@ -8,6 +8,22 @@ import { cn } from '@/lib/utils';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
+const formatValue = (val: any): string => {
+  if (val === undefined || val === null) return '--';
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  if (typeof val === 'object') {
+    if (val.latitude !== undefined && val.longitude !== undefined) {
+      return `${val.latitude.toFixed(4)}, ${val.longitude.toFixed(4)}`;
+    }
+    try {
+      return JSON.stringify(val);
+    } catch (e) {
+      return '[Complex Object]';
+    }
+  }
+  return String(val);
+};
+
 export default function ParametersPage() {
   const params = useParams();
   const router = useRouter();
@@ -80,7 +96,7 @@ export default function ParametersPage() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-light break-all">
-                    {typeof data.value === 'boolean' ? (data.value ? 'TRUE' : 'FALSE') : (data.value ?? 'N/A')}
+                    {formatValue(data.value)}
                   </span>
                   {data.unit && <span className="text-sm opacity-40 uppercase font-bold">{data.unit}</span>}
                 </div>

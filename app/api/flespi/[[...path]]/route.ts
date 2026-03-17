@@ -37,7 +37,9 @@ export async function GET(
 
       if (subPath === 'messages') {
         const limit = parseInt(searchParams.get('limit') || '100');
-        const messages = await FlespiService.getDeviceMessages(token, deviceId, limit);
+        const from = searchParams.get('from') ? parseInt(searchParams.get('from')!) : undefined;
+        const to = searchParams.get('to') ? parseInt(searchParams.get('to')!) : undefined;
+        const messages = await FlespiService.getDeviceMessages(token, deviceId, limit, from, to);
         return NextResponse.json(messages);
       }
     }

@@ -46,6 +46,22 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import Leaflet components to avoid SSR issues
+const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
+const Polyline = dynamic(() => import('react-leaflet').then(mod => mod.Polyline), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+const MapUpdater = dynamic(() => Promise.resolve(({ center }: { center: [number, number] }) => {
+  const { useMap } = require('react-leaflet');
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center);
+  }, [center, map]);
+  return null;
+}), { ssr: false });
 
 // --- Types ---
 
@@ -85,20 +101,39 @@ const fetcher = async (url: string) => {
 
 // --- Components ---
 
-const Tile = ({ 
+const formatValue = (val: any): string => {
+  if (val === undefined || val === null) return '--';
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  if (typeof val === 'object') {
+    // Special handling for Flespi position object
+    if (val.latitude !== undefined && val.longitude !== undefined) {
+      return `${val.latitude.toFixed(4)}, ${val.longitude.toFixed(4)}`;
+    }
+    try {
+      return JSON.stringify(val);
+    } catch (e) {
+      return '[Complex Object]';
+    }
+  }
+  return String(val);
+};
+
+const Tile = React.memo(({ 
   title, 
   value, 
   unit, 
   icon: Icon, 
   className, 
-  size = 'medium' 
+  size = 'medium',
+  loading = false
 }: { 
   title: string; 
   value: any; 
   unit?: string; 
   icon?: any; 
   className?: string;
-  size?: 'small' | 'medium' | 'large' | 'wide'
+  size?: 'small' | 'medium' | 'large' | 'wide';
+  loading?: boolean;
 }) => {
   const sizeClasses = {
     small: 'col-span-1 row-span-1 h-32 w-32',
@@ -109,26 +144,34 @@ const Tile = ({
 
   return (
     <div className={cn(
-      "relative p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden",
+      "relative p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden shadow-md",
       sizeClasses[size as keyof typeof sizeClasses],
       className
     )}>
       <div className="flex justify-between items-start">
-        <span className="text-xs font-semibold uppercase tracking-wider opacity-80">{title}</span>
-        {Icon && <Icon size={20} className="opacity-60" />}
+        <span className="text-[10px] font-bold uppercase tracking-widest opacity-90">{title}</span>
+        {Icon && <Icon size={18} className="opacity-70" />}
       </div>
       <div className="flex flex-col">
-        <span className={cn(
-          "font-light leading-none",
-          size === 'small' ? "text-2xl" : "text-5xl"
-        )}>
-          {value ?? '--'}
-        </span>
-        {unit && <span className="text-sm font-medium mt-1 opacity-80">{unit}</span>}
+        {loading ? (
+          <div className="h-10 w-20 bg-white/20 animate-pulse" />
+        ) : (
+          <>
+            <span className={cn(
+              "font-light leading-none",
+              size === 'small' ? "text-2xl" : "text-5xl"
+            )}>
+              {formatValue(value)}
+            </span>
+            {unit && <span className="text-xs font-bold mt-1 opacity-90 uppercase tracking-tighter">{unit}</span>}
+          </>
+        )}
       </div>
     </div>
   );
-};
+});
+
+Tile.displayName = 'Tile';
 
 const SectionHeader = ({ title, subtitle, theme }: { title: string; subtitle?: string; theme: 'light' | 'dark' }) => (
   <div className="mb-8">
@@ -136,7 +179,12 @@ const SectionHeader = ({ title, subtitle, theme }: { title: string; subtitle?: s
       "text-6xl font-light tracking-tight lowercase transition-colors",
       theme === 'dark' ? "text-white" : "text-[#1a1a1a]"
     )}>{title}</h2>
-    {subtitle && <p className="text-xl text-metro-blue font-medium mt-2">{subtitle}</p>}
+    {subtitle && (
+      <p className={cn(
+        "text-xl font-medium mt-2 transition-colors",
+        theme === 'dark' ? "text-metro-blue" : "text-[#008c8a]"
+      )}>{subtitle}</p>
+    )}
   </div>
 );
 
@@ -152,6 +200,15 @@ export default function Dashboard() {
   const [showAllParams, setShowAllParams] = useState(false);
   const [viewMode, setViewMode] = useState<'chart' | 'map'>('map');
   const [analyticsParam, setAnalyticsParam] = useState('position.latitude');
+  const [fromTime, setFromTime] = useState<string>(() => {
+    const d = new Date();
+    d.setHours(d.getHours() - 24);
+    return d.toISOString().slice(0, 16);
+  });
+  const [toTime, setToTime] = useState<string>(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 16);
+  });
   const [tiles, setTiles] = useState<TileConfig[]>(DEFAULT_TILES);
   const [customToken, setCustomToken] = useState<string | null>(null);
 
@@ -166,6 +223,17 @@ export default function Dashboard() {
     const savedToken = localStorage.getItem('flespi_token');
     if (savedToken) setCustomToken(savedToken);
     /* eslint-enable react-hooks/set-state-in-effect */
+
+    // Fix for Leaflet default icon issue
+    if (typeof window !== 'undefined') {
+      const L = require('leaflet');
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+      });
+    }
 
     setMounted(true);
   }, []);
@@ -183,13 +251,14 @@ export default function Dashboard() {
   }, [tiles, mounted]);
 
   const intervals = useMemo(() => ({
-    devices: pollingSpeed === 'fast' ? 300000 : 600000,
-    telemetry: pollingSpeed === 'fast' ? 30000 : 120000,
-    messages: pollingSpeed === 'fast' ? 600000 : 1200000,
+    devices: pollingSpeed === 'fast' ? 60000 : 300000,
+    telemetry: pollingSpeed === 'fast' ? 5000 : 30000,
+    messages: pollingSpeed === 'fast' ? 300000 : 600000,
   }), [pollingSpeed]);
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, tileId: string } | null>(null);
   const [isAddingTile, setIsAddingTile] = useState(false);
+  const [paramFilter, setParamFilter] = useState('');
 
   const handleSetToken = (token: string) => {
     localStorage.setItem('flespi_token', token);
@@ -235,14 +304,57 @@ export default function Dashboard() {
     }
   );
 
-  // Merge telemetry from devices call (which now includes telemetry) with specific telemetry call
+  // Merge telemetry and normalize it
   const telemetry = useMemo(() => {
-    return { ...selectedDevice?.telemetry, ...telemetryData };
+    const merged: Record<string, { value: any, ts: number, unit?: string }> = {};
+    
+    // Process device-level telemetry (usually just values)
+    if (selectedDevice?.telemetry) {
+      Object.entries(selectedDevice.telemetry).forEach(([key, val]) => {
+        merged[key] = { 
+          value: val, 
+          ts: 0,
+          unit: key.includes('temp') ? '°C' : key.includes('level') ? '%' : ''
+        };
+      });
+    }
+    
+    // Process specific telemetry call (objects with value and ts)
+    if (telemetryData) {
+      Object.entries(telemetryData).forEach(([key, data]: [string, any]) => {
+        merged[key] = {
+          ...data,
+          unit: data.unit || (key.includes('temp') ? '°C' : key.includes('level') ? '%' : '')
+        };
+      });
+    }
+    
+    return merged;
   }, [selectedDevice, telemetryData]);
 
+  const filteredTelemetry = useMemo(() => {
+    if (!telemetry) return [];
+    return Object.entries(telemetry).filter(([key]) => 
+      key.toLowerCase().includes(paramFilter.toLowerCase())
+    );
+  }, [telemetry, paramFilter]);
+
+  const isRangeValid = useMemo(() => {
+    return new Date(fromTime).getTime() < new Date(toTime).getTime();
+  }, [fromTime, toTime]);
+
   // Fetch history - Much slower polling
+  const historyUrl = useMemo(() => {
+    if (!effectiveDeviceId || !isRangeValid) return null;
+    const fromTs = Math.floor(new Date(fromTime).getTime() / 1000);
+    const toTs = Math.floor(new Date(toTime).getTime() / 1000);
+    let url = `/api/flespi/devices/${effectiveDeviceId}/messages?limit=1000&from=${fromTs}&to=${toTs}`;
+    if (customToken) url += `&token=${customToken}`;
+    return url;
+  }, [effectiveDeviceId, fromTime, toTime, customToken, isRangeValid]);
+
   const { data: history, error: historyError, mutate: mutateHistory } = useSWR(
-    effectiveDeviceId ? (customToken ? `/api/flespi/devices/${effectiveDeviceId}/messages?limit=100&token=${customToken}` : `/api/flespi/devices/${effectiveDeviceId}/messages?limit=100`) : null,
+    historyUrl,
     fetcher,
     {
       refreshInterval: intervals.messages,
@@ -285,13 +397,41 @@ export default function Dashboard() {
 
   // Prepare chart data
   const chartData = useMemo(() => {
-    if (!Array.isArray(history)) return [];
-    return history.map((msg: any, index: number) => ({
-      time: new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      value: msg[analyticsParam] || (analyticsParam === 'can.temperature' ? (20 + (index % 10)) : (80 + (index % 20))),
-      battery: msg['battery.level'] || (80 + (index % 20))
-    })).reverse();
+    if (!Array.isArray(history) || history.length === 0) return [];
+    
+    const isMultiDay = history.length > 1 && 
+      (history[0].timestamp - history[history.length - 1].timestamp > 86400);
+
+    return history.map((msg: any, index: number) => {
+      const val = msg[analyticsParam];
+      const date = new Date(msg.timestamp * 1000);
+      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      
+      return {
+        timestamp: msg.timestamp,
+        time: isMultiDay ? `${dateStr} ${timeStr}` : timeStr,
+        value: (val !== undefined && val !== null) ? val : (analyticsParam === 'can.temperature' ? (20 + (index % 10)) : (80 + (index % 20))),
+        battery: msg['battery.level'] || (80 + (index % 20))
+      };
+    }).reverse();
   }, [history, analyticsParam]);
+
+  const trail = useMemo(() => {
+    if (!Array.isArray(history)) return [];
+    return history
+      .map((msg: any) => {
+        const lat = msg['position.latitude'] || msg['latitude'];
+        const lon = msg['position.longitude'] || msg['longitude'];
+        if (typeof lat === 'number' && typeof lon === 'number') {
+          return [lat, lon] as [number, number];
+        }
+        return null;
+      })
+      .filter((p): p is [number, number] => p !== null);
+  }, [history]);
+
+  if (!mounted) return null;
 
   const handleTileContextMenu = (e: React.MouseEvent, tileId: string) => {
     e.preventDefault();
@@ -384,10 +524,11 @@ export default function Dashboard() {
           >
             <span className="text-xs font-semibold uppercase tracking-wider opacity-80">{tile.title}</span>
             <select 
-              className="bg-transparent text-2xl font-light outline-none border-none cursor-pointer"
+              className="bg-transparent text-2xl font-light outline-none border-none cursor-pointer text-white"
               value={effectiveDeviceId || ''}
               onChange={(e) => setSelectedDeviceId(Number(e.target.value))}
             >
+              <option value="" disabled className="text-black">Select Device</option>
               {Array.isArray(devices) && devices.map((d: any) => (
                 <option key={d.id} value={d.id} className="text-black">{d.name}</option>
               ))}
@@ -401,6 +542,7 @@ export default function Dashboard() {
               {...commonProps}
               value={telemetry?.[tile.key!]?.value} 
               unit={tile.unit}
+              loading={telemetryLoading && !telemetry?.[tile.key!]}
               icon={tile.key?.includes('battery') ? Battery : tile.key?.includes('signal') ? Signal : Thermometer}
             />
           </div>
@@ -460,7 +602,7 @@ export default function Dashboard() {
 
   return (
     <div className={cn(
-      "panorama-container h-screen select-none transition-colors duration-500",
+      "panorama-container h-screen transition-colors duration-300",
       theme === 'dark' ? "bg-black text-white" : "bg-white text-black"
     )} onClick={() => {
       setContextMenu(null);
@@ -484,13 +626,32 @@ export default function Dashboard() {
         </div>
         
         {lastUpdated && (
-          <p className="text-[10px] font-bold uppercase text-gray-400 mb-4 tracking-widest">
+          <p className={cn(
+            "text-[10px] font-bold uppercase mb-4 tracking-widest transition-colors",
+            theme === 'dark' ? "text-gray-500" : "text-gray-600"
+          )}>
             Last updated: {lastUpdated.toLocaleTimeString()} {customToken && '(Custom Token)'}
           </p>
         )}
         
         <div className="grid grid-cols-4 gap-2 auto-rows-min">
-          {tiles.map(renderTile)}
+          {devicesLoading && !devices ? (
+            <div className="col-span-4 p-8 flex flex-col items-center justify-center">
+              <RefreshCw size={48} className="animate-spin text-metro-blue opacity-20 mb-4" />
+              <p className="text-xl font-light opacity-60">Loading devices...</p>
+            </div>
+          ) : Array.isArray(devices) && devices.length > 0 ? (
+            tiles.map(renderTile)
+          ) : (
+            <div className={cn(
+              "col-span-4 p-8 border-2 border-dashed flex flex-col items-center justify-center text-center",
+              theme === 'dark' ? "border-white/10 text-gray-500" : "border-gray-200 text-gray-400"
+            )}>
+              <AlertCircle size={48} className="mb-4 opacity-20" />
+              <p className="text-xl font-light">No devices found</p>
+              <p className="text-xs font-bold uppercase mt-2 opacity-60">Check your Flespi token or add a device in Flespi.io</p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -514,18 +675,76 @@ export default function Dashboard() {
                   {viewMode === 'map' ? 'Live Location' : `Analysis: ${analyticsParam}`}
                 </h3>
                 {viewMode === 'chart' && (
-                  <select 
-                    className={cn(
-                      "mt-2 border text-xs font-bold uppercase p-2 outline-none focus:border-metro-blue",
-                      theme === 'dark' ? "bg-black border-white/20 text-white" : "bg-gray-50 border-gray-200 text-black"
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <select 
+                      className={cn(
+                        "mt-2 border text-xs font-bold uppercase p-2 outline-none focus:border-metro-blue",
+                        theme === 'dark' ? "bg-black border-white/20 text-white" : "bg-gray-50 border-gray-200 text-black"
+                      )}
+                      value={analyticsParam}
+                      onChange={(e) => setAnalyticsParam(e.target.value)}
+                    >
+                      {allAvailableParams.map(key => (
+                        <option key={key} value={key}>{key}</option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="text-[10px] uppercase font-bold opacity-50">From</span>
+                      <input 
+                        type="datetime-local"
+                        className={cn(
+                          "border text-[10px] font-bold p-1 outline-none focus:border-metro-blue",
+                          theme === 'dark' ? "bg-black border-white/20 text-white" : "bg-gray-50 border-gray-200 text-black"
+                        )}
+                        value={fromTime}
+                        onChange={(e) => setFromTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="text-[10px] uppercase font-bold opacity-50">To</span>
+                      <input 
+                        type="datetime-local"
+                        className={cn(
+                          "border text-[10px] font-bold p-1 outline-none focus:border-metro-blue",
+                          theme === 'dark' ? "bg-black border-white/20 text-white" : "bg-gray-50 border-gray-200 text-black"
+                        )}
+                        value={toTime}
+                        onChange={(e) => setToTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-1 mt-2 ml-2">
+                      {[
+                        { label: '1h', hours: 1 },
+                        { label: '6h', hours: 6 },
+                        { label: '24h', hours: 24 },
+                        { label: '7d', hours: 168 },
+                      ].map((range) => (
+                        <button
+                          key={range.label}
+                          onClick={() => {
+                            const now = new Date();
+                            const then = new Date();
+                            then.setHours(now.getHours() - range.hours);
+                            setToTime(now.toISOString().slice(0, 16));
+                            setFromTime(then.toISOString().slice(0, 16));
+                          }}
+                          className={cn(
+                            "text-[9px] font-bold uppercase px-2 py-1 border transition-colors",
+                            theme === 'dark' 
+                              ? "border-white/10 hover:bg-white/5 text-white/60 hover:text-white" 
+                              : "border-gray-200 hover:bg-gray-100 text-gray-500 hover:text-black"
+                          )}
+                        >
+                          {range.label}
+                        </button>
+                      ))}
+                    </div>
+                    {!isRangeValid && (
+                      <span className="text-[9px] text-metro-red font-bold uppercase mt-2 ml-2">
+                        Invalid Range
+                      </span>
                     )}
-                    value={analyticsParam}
-                    onChange={(e) => setAnalyticsParam(e.target.value)}
-                  >
-                    {allAvailableParams.map(key => (
-                      <option key={key} value={key}>{key}</option>
-                    ))}
-                  </select>
+                  </div>
                 )}
               </div>
               <div className="flex gap-2">
@@ -572,7 +791,21 @@ export default function Dashboard() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? "#333" : "#eee"} />
                     <XAxis 
-                      dataKey="time" 
+                      dataKey="timestamp" 
+                      type="number"
+                      domain={['auto', 'auto']}
+                      tickFormatter={(unixTime) => {
+                        const date = new Date(unixTime * 1000);
+                        const isMultiDay = history && history.length > 1 && 
+                          (history[0].timestamp - history[history.length - 1].timestamp > 86400);
+                        
+                        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        if (isMultiDay) {
+                          const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                          return `${dateStr} ${timeStr}`;
+                        }
+                        return timeStr;
+                      }}
                       axisLine={false} 
                       tickLine={false} 
                       tick={{ fontSize: 10, fontWeight: 700, fill: theme === 'dark' ? '#666' : '#999' }}
@@ -618,16 +851,35 @@ export default function Dashboard() {
                   theme === 'dark' ? "bg-black border-white/10" : "bg-gray-100 border-gray-200"
                 )}>
                   {lat && lon ? (
-                    <iframe 
-                      width="100%" 
-                      height="100%" 
-                      frameBorder="0" 
-                      scrolling="no" 
-                      marginHeight={0} 
-                      marginWidth={0} 
-                      src={`https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`}
+                    <MapContainer 
+                      center={[lat, lon]} 
+                      zoom={15} 
+                      style={{ height: '100%', width: '100%' }}
                       className={cn(theme === 'dark' ? "grayscale invert contrast-125 opacity-80" : "grayscale contrast-125")}
-                    />
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      <Marker position={[lat, lon]}>
+                        <Popup>
+                          <div className="text-xs font-bold uppercase">
+                            Current Location<br/>
+                            {lat.toFixed(4)}, {lon.toFixed(4)}
+                          </div>
+                        </Popup>
+                      </Marker>
+                      {trail.length > 1 && (
+                        <Polyline 
+                          positions={trail} 
+                          color="#aa00ff" 
+                          weight={4} 
+                          opacity={0.6} 
+                          dashArray="10, 10"
+                        />
+                      )}
+                      <MapUpdater center={[lat, lon]} />
+                    </MapContainer>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400">
                       <MapPin size={48} className="mb-4 opacity-20" />
@@ -650,7 +902,7 @@ export default function Dashboard() {
               <List size={20} className="text-gray-400" />
             </div>
             <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
-              {allAvailableParams.map(key => {
+              {allAvailableParams.length > 0 ? allAvailableParams.map(key => {
                 const data = telemetry?.[key];
                 const isLocation = key.includes('latitude') || key.includes('longitude');
                 return (
@@ -667,11 +919,14 @@ export default function Dashboard() {
                     }}
                   >
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-bold uppercase text-gray-400 tracking-widest group-hover:text-metro-blue transition-colors">
+                      <span className={cn(
+                        "text-[9px] font-bold uppercase tracking-widest group-hover:text-metro-blue transition-colors",
+                        theme === 'dark' ? "text-gray-500" : "text-gray-600"
+                      )}>
                         {key}
                       </span>
                       <span className="text-lg font-light">
-                        {typeof data?.value === 'boolean' ? (data.value ? 'TRUE' : 'FALSE') : (data?.value ?? '--')}
+                        {formatValue(data?.value)}
                       </span>
                     </div>
                     <div className="flex flex-col items-end">
@@ -680,7 +935,12 @@ export default function Dashboard() {
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <div className="flex flex-col items-center justify-center h-full opacity-40">
+                  <Activity size={48} className="mb-4" />
+                  <p className="text-center font-light">Waiting for telemetry...</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -760,26 +1020,29 @@ export default function Dashboard() {
       {/* CONTEXT MENU */}
       {contextMenu && (
         <div 
-          className="fixed z-[200] bg-white shadow-2xl border border-gray-200 py-2 w-48"
+          className={cn(
+            "fixed z-[200] shadow-2xl border py-2 w-48 transition-colors",
+            theme === 'dark' ? "bg-[#1a1a1a] border-white/10 text-white" : "bg-white border-gray-200 text-black"
+          )}
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           <button 
             onClick={() => moveTile(contextMenu.tileId, 'up')}
-            className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 text-sm"
+            className={cn("w-full text-left px-4 py-2 flex items-center gap-3 text-sm", theme === 'dark' ? "hover:bg-white/5" : "hover:bg-gray-100")}
           >
             <Move size={16} className="rotate-180" /> Move Up
           </button>
           <button 
             onClick={() => moveTile(contextMenu.tileId, 'down')}
-            className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 text-sm"
+            className={cn("w-full text-left px-4 py-2 flex items-center gap-3 text-sm", theme === 'dark' ? "hover:bg-white/5" : "hover:bg-gray-100")}
           >
             <Move size={16} /> Move Down
           </button>
-          <div className="h-px bg-gray-100 my-1" />
+          <div className={cn("h-px my-1", theme === 'dark' ? "bg-white/10" : "bg-gray-100")} />
           <button 
             onClick={() => deleteTile(contextMenu.tileId)}
-            className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-3 text-sm text-metro-red"
+            className={cn("w-full text-left px-4 py-2 flex items-center gap-3 text-sm text-metro-red", theme === 'dark' ? "hover:bg-white/5" : "hover:bg-gray-100")}
           >
             <Trash2 size={16} /> Delete Tile
           </button>
@@ -789,13 +1052,19 @@ export default function Dashboard() {
       {/* ADD TILE MODAL */}
       {isAddingTile && (
         <div className="fixed inset-0 z-[300] bg-black/80 flex items-center justify-center p-8">
-          <div className="bg-white w-full max-w-md p-8">
+          <div className={cn(
+            "w-full max-w-md p-8 transition-colors",
+            theme === 'dark' ? "bg-[#1a1a1a] text-white" : "bg-white text-black"
+          )}>
             <h2 className="text-4xl font-light mb-8">Add New Tile</h2>
             <div className="space-y-6">
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Parameter Key</label>
                 <select 
-                  className="w-full border-b-2 border-gray-200 py-2 outline-none focus:border-metro-blue"
+                  className={cn(
+                    "w-full border-b-2 py-2 outline-none focus:border-metro-blue transition-colors",
+                    theme === 'dark' ? "bg-transparent border-white/10 text-white" : "bg-transparent border-gray-200 text-black"
+                  )}
                   onChange={(e) => {
                     const key = e.target.value;
                     if (key) {
@@ -809,16 +1078,16 @@ export default function Dashboard() {
                     }
                   }}
                 >
-                  <option value="">Select a parameter...</option>
+                  <option value="" className="text-black">Select a parameter...</option>
                   {telemetry && Object.keys(telemetry).map(key => (
-                    <option key={key} value={key}>{key}</option>
+                    <option key={key} value={key} className="text-black">{key}</option>
                   ))}
                 </select>
               </div>
               <div className="flex justify-end gap-4 mt-8">
                 <button 
                   onClick={() => setIsAddingTile(false)}
-                  className="px-6 py-2 text-sm font-bold uppercase tracking-widest text-gray-400 hover:text-black"
+                  className="px-6 py-2 text-sm font-bold uppercase tracking-widest text-gray-400 hover:text-metro-blue transition-colors"
                 >
                   Cancel
                 </button>
@@ -835,7 +1104,7 @@ export default function Dashboard() {
           theme === 'dark' ? "bg-black/95 text-white" : "bg-white/95 text-black"
         )}>
           <div className="max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-12">
+            <div className="flex justify-between items-center mb-8">
               <h2 className="text-6xl font-light tracking-tight lowercase">all parameters</h2>
               <button 
                 onClick={() => setShowAllParams(false)}
@@ -845,15 +1114,31 @@ export default function Dashboard() {
               </button>
             </div>
 
+            <div className="mb-8">
+              <input 
+                type="text"
+                placeholder="Search parameters..."
+                className={cn(
+                  "w-full text-2xl font-light border-b-2 py-4 outline-none focus:border-metro-blue transition-colors",
+                  theme === 'dark' ? "bg-transparent border-white/10 text-white" : "bg-transparent border-black/10 text-black"
+                )}
+                value={paramFilter}
+                onChange={(e) => setParamFilter(e.target.value)}
+              />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {telemetry ? Object.entries(telemetry).map(([key, data]: [string, any]) => (
+              {filteredTelemetry.length > 0 ? filteredTelemetry.map(([key, data]: [string, any]) => (
                 <div key={key} className={cn(
                   "border p-4 transition-colors",
                   theme === 'dark' ? "border-white/20 hover:bg-white/5" : "border-black/10 hover:bg-black/5"
                 )}>
-                  <p className="text-[10px] font-bold uppercase text-gray-500 mb-1 tracking-widest">{key}</p>
+                  <p className={cn(
+                    "text-[10px] font-bold uppercase mb-1 tracking-widest transition-colors",
+                    theme === 'dark' ? "text-gray-500" : "text-gray-600"
+                  )}>{key}</p>
                   <p className="text-2xl font-light break-all">
-                    {typeof data.value === 'boolean' ? (data.value ? 'TRUE' : 'FALSE') : (data.value ?? 'N/A')}
+                    {formatValue(data.value)}
                     <span className="text-sm ml-2 opacity-60 uppercase">{data.unit}</span>
                   </p>
                   <p className="text-[10px] text-gray-600 mt-2">
@@ -861,7 +1146,7 @@ export default function Dashboard() {
                   </p>
                 </div>
               )) : (
-                <p className="text-2xl font-light opacity-60">No telemetry data available.</p>
+                <p className="text-2xl font-light opacity-60">No matching telemetry data found.</p>
               )}
             </div>
           </div>
