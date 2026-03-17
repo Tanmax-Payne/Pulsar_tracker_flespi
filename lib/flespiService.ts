@@ -28,7 +28,8 @@ export class FlespiService {
   }
 
   static async getDevices(token: string): Promise<FlespiDevice[]> {
-    const res = await fetch(`${this.baseUrl}/devices/all`, {
+    // Include telemetry in the devices call to save requests
+    const res = await fetch(`${this.baseUrl}/devices/all?fields=id,name,connected,telemetry`, {
       headers: this.getHeaders(token),
     });
     if (!res.ok) {

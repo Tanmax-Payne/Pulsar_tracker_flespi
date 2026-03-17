@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { SWRConfig } from 'swr';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -17,7 +18,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <body className={`${inter.className} h-full bg-[#efefef] text-[#1a1a1a] antialiased`} suppressHydrationWarning>
-        {children}
+        <SWRConfig 
+          value={{
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false,
+            dedupingInterval: 10000, // 10 seconds
+          }}
+        >
+          {children}
+        </SWRConfig>
       </body>
     </html>
   );

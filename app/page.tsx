@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { 
   MapPin,
+  Map as MapIcon,
+  BarChart3,
   List,
   LogOut,
   Globe,
@@ -23,7 +25,13 @@ import {
   Move,
   Edit3,
   Check,
-  X
+  X,
+  MoreHorizontal,
+  Sun,
+  Moon,
+  Zap,
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -37,6 +45,7 @@ import {
   Area
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
 
 // --- Types ---
 
@@ -52,14 +61,14 @@ interface TileConfig {
 }
 
 const DEFAULT_TILES: TileConfig[] = [
-  { id: 't1', type: 'status', title: 'status', className: 'bg-metro-green text-white', size: 'medium' },
-  { id: 't2', type: 'selector', title: 'switch device', className: 'bg-metro-blue text-white', size: 'wide' },
-  { id: 't3', type: 'telemetry', title: 'battery', key: 'battery.level', unit: '%', className: 'bg-metro-orange text-white', size: 'small' },
-  { id: 't4', type: 'telemetry', title: 'signal', key: 'gsm.signal.level', unit: 'dbm', className: 'bg-metro-cyan text-white', size: 'small' },
-  { id: 't5', type: 'location', title: 'location', className: 'bg-metro-violet text-white', size: 'small' },
-  { id: 't6', type: 'telemetry', title: 'temp', key: 'can.temperature', unit: '°C', className: 'bg-metro-red text-white', size: 'small' },
-  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-metro-magenta text-white', size: 'small' },
-  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-[#333] text-white', size: 'small' },
+  { id: 't1', type: 'status', title: 'status', className: 'bg-[#a4c400] text-white', size: 'medium' },
+  { id: 't2', type: 'selector', title: 'switch device', className: 'bg-[#00aba9] text-white', size: 'wide' },
+  { id: 't3', type: 'telemetry', title: 'battery', key: 'battery.level', unit: '%', className: 'bg-[#f09609] text-white', size: 'small' },
+  { id: 't4', type: 'telemetry', title: 'signal', key: 'gsm.signal.level', unit: 'dbm', className: 'bg-[#1ba1e2] text-white', size: 'small' },
+  { id: 't5', type: 'location', title: 'location', className: 'bg-[#aa00ff] text-white', size: 'small' },
+  { id: 't6', type: 'telemetry', title: 'temp', key: 'can.temperature', unit: '°C', className: 'bg-[#e51400] text-white', size: 'small' },
+  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-[#d80073] text-white', size: 'small' },
+  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-[#333333] text-white', size: 'small' },
 ];
 
 const fetcher = async (url: string) => {
@@ -121,9 +130,12 @@ const Tile = ({
   );
 };
 
-const SectionHeader = ({ title, subtitle }: { title: string; subtitle?: string }) => (
+const SectionHeader = ({ title, subtitle, theme }: { title: string; subtitle?: string; theme: 'light' | 'dark' }) => (
   <div className="mb-8">
-    <h2 className="text-6xl font-light tracking-tight text-[#1a1a1a] lowercase">{title}</h2>
+    <h2 className={cn(
+      "text-6xl font-light tracking-tight lowercase transition-colors",
+      theme === 'dark' ? "text-white" : "text-[#1a1a1a]"
+    )}>{title}</h2>
     {subtitle && <p className="text-xl text-metro-blue font-medium mt-2">{subtitle}</p>}
   </div>
 );
@@ -131,30 +143,53 @@ const SectionHeader = ({ title, subtitle }: { title: string; subtitle?: string }
 // --- Main Dashboard ---
 
 export default function Dashboard() {
+  const [mounted, setMounted] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [pollingSpeed, setPollingSpeed] = useState<'slow' | 'fast'>('slow');
+
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
   const [showAllParams, setShowAllParams] = useState(false);
-  const [analyticsParam, setAnalyticsParam] = useState('can.temperature');
-  const [tiles, setTiles] = useState<TileConfig[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('metro_tiles');
-      return saved ? JSON.parse(saved) : DEFAULT_TILES;
-    }
-    return DEFAULT_TILES;
-  });
-  
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, tileId: string } | null>(null);
-  const [isAddingTile, setIsAddingTile] = useState(false);
+  const [viewMode, setViewMode] = useState<'chart' | 'map'>('map');
+  const [analyticsParam, setAnalyticsParam] = useState('position.latitude');
+  const [tiles, setTiles] = useState<TileConfig[]>(DEFAULT_TILES);
+  const [customToken, setCustomToken] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('metro_tiles', JSON.stringify(tiles));
-  }, [tiles]);
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const savedTheme = localStorage.getItem('metro_theme') as 'light' | 'dark';
+    if (savedTheme) setTheme(savedTheme);
 
-  const [customToken, setCustomToken] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('flespi_token');
+    const savedTiles = localStorage.getItem('metro_tiles');
+    if (savedTiles) setTiles(JSON.parse(savedTiles));
+
+    const savedToken = localStorage.getItem('flespi_token');
+    if (savedToken) setCustomToken(savedToken);
+    /* eslint-enable react-hooks/set-state-in-effect */
+
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('metro_theme', theme);
     }
-    return null;
-  });
+  }, [theme, mounted]);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('metro_tiles', JSON.stringify(tiles));
+    }
+  }, [tiles, mounted]);
+
+  const intervals = useMemo(() => ({
+    devices: pollingSpeed === 'fast' ? 300000 : 600000,
+    telemetry: pollingSpeed === 'fast' ? 30000 : 120000,
+    messages: pollingSpeed === 'fast' ? 600000 : 1200000,
+  }), [pollingSpeed]);
+
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, tileId: string } | null>(null);
+  const [isAddingTile, setIsAddingTile] = useState(false);
 
   const handleSetToken = (token: string) => {
     localStorage.setItem('flespi_token', token);
@@ -168,44 +203,85 @@ export default function Dashboard() {
     window.location.reload();
   };
 
-  // Fetch devices - Slower polling as requested
+  // Fetch devices - Much slower polling to avoid rate limits
   const { data: devices, error: devicesError, isLoading: devicesLoading } = useSWR(
     customToken ? `/api/flespi/devices?token=${customToken}` : '/api/flespi/devices', 
     fetcher, 
     {
-      refreshInterval: 300000, // 5 minutes
-      revalidateOnFocus: false
+      refreshInterval: intervals.devices,
+      revalidateOnFocus: false,
+      dedupingInterval: 30000,
     }
   );
 
   const effectiveDeviceId = selectedDeviceId ?? (Array.isArray(devices) && devices.length > 0 ? devices[0].id : null);
 
+  const selectedDevice = useMemo(() => {
+    if (!Array.isArray(devices)) return null;
+    return devices.find((d: any) => d.id === effectiveDeviceId);
+  }, [devices, effectiveDeviceId]);
+
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Fetch telemetry - Slower polling
-  const { data: telemetry, error: telemetryError, isLoading: telemetryLoading, mutate: mutateTelemetry } = useSWR(
+  const { data: telemetryData, error: telemetryError, isLoading: telemetryLoading, mutate: mutateTelemetry } = useSWR(
     effectiveDeviceId ? (customToken ? `/api/flespi/devices/${effectiveDeviceId}/telemetry?token=${customToken}` : `/api/flespi/devices/${effectiveDeviceId}/telemetry`) : null,
     fetcher,
     { 
-      refreshInterval: 60000, // 1 minute
+      refreshInterval: intervals.telemetry,
       revalidateOnFocus: false,
+      dedupingInterval: 30000,
       onSuccess: () => setLastUpdated(new Date())
     }
   );
 
-  // Fetch history - Slower polling
+  // Merge telemetry from devices call (which now includes telemetry) with specific telemetry call
+  const telemetry = useMemo(() => {
+    return { ...selectedDevice?.telemetry, ...telemetryData };
+  }, [selectedDevice, telemetryData]);
+
+  // Fetch history - Much slower polling
   const { data: history, error: historyError, mutate: mutateHistory } = useSWR(
     effectiveDeviceId ? (customToken ? `/api/flespi/devices/${effectiveDeviceId}/messages?limit=100&token=${customToken}` : `/api/flespi/devices/${effectiveDeviceId}/messages?limit=100`) : null,
     fetcher,
     {
-      refreshInterval: 600000, // 10 minutes
-      revalidateOnFocus: false
+      refreshInterval: intervals.messages,
+      revalidateOnFocus: false,
+      dedupingInterval: 60000,
     }
   );
 
   const handleManualRefresh = async () => {
-    await Promise.all([mutateTelemetry(), mutateHistory()]);
+    await Promise.all([
+      mutateTelemetry(), 
+      mutateHistory(),
+      mutate(customToken ? `/api/flespi/devices?token=${customToken}` : '/api/flespi/devices')
+    ]);
   };
+
+  // Collect all available parameters from telemetry and history
+  const allAvailableParams = useMemo(() => {
+    const keys = new Set<string>();
+    
+    // Add defaults first to ensure they are always present
+    ['position.latitude', 'position.longitude', 'can.temperature', 'battery.level', 'gsm.signal.level'].forEach(k => keys.add(k));
+    
+    if (telemetry) {
+      Object.keys(telemetry).forEach(k => keys.add(k));
+    }
+    
+    if (Array.isArray(history)) {
+      history.forEach((msg: any) => {
+        Object.keys(msg).forEach(k => {
+          if (k !== 'timestamp' && k !== 'ident' && typeof msg[k] !== 'object') {
+            keys.add(k);
+          }
+        });
+      });
+    }
+    
+    return Array.from(keys).sort();
+  }, [telemetry, history]);
 
   // Prepare chart data
   const chartData = useMemo(() => {
@@ -276,8 +352,6 @@ export default function Dashboard() {
       </div>
     </div>
   );
-
-  const selectedDevice = Array.isArray(devices) ? devices.find((d: any) => d.id === effectiveDeviceId) : null;
 
   const lat = telemetry?.['position.latitude']?.value || telemetry?.['latitude']?.value;
   const lon = telemetry?.['position.longitude']?.value || telemetry?.['longitude']?.value;
@@ -380,8 +454,18 @@ export default function Dashboard() {
     }
   };
 
+  if (!mounted) {
+    return <div className="h-screen bg-black" />;
+  }
+
   return (
-    <div className="panorama-container h-screen select-none" onClick={() => setContextMenu(null)}>
+    <div className={cn(
+      "panorama-container h-screen select-none transition-colors duration-500",
+      theme === 'dark' ? "bg-black text-white" : "bg-white text-black"
+    )} onClick={() => {
+      setContextMenu(null);
+      setIsMenuOpen(false);
+    }}>
       
       {/* SECTION 1: OVERVIEW */}
       <section className="panorama-section">
@@ -389,10 +473,11 @@ export default function Dashboard() {
           <SectionHeader 
             title="dashboard" 
             subtitle={selectedDevice?.name || 'loading devices...'} 
+            theme={theme}
           />
           <button 
             onClick={() => setIsAddingTile(true)}
-            className="mb-2 p-2 bg-metro-green text-white rounded-full hover:scale-110 transition-transform"
+            className="mb-2 p-2 bg-metro-green text-white rounded-full hover:scale-110 transition-transform shadow-lg"
           >
             <Plus size={24} />
           </button>
@@ -410,96 +495,214 @@ export default function Dashboard() {
       </section>
 
       {/* SECTION 2: ANALYTICS */}
-      <section className="panorama-section bg-white/50">
-        <SectionHeader title="analytics" subtitle="telemetry history" />
+      <section className={cn("panorama-section", theme === 'dark' ? "bg-[#0a0a0a]" : "bg-gray-50")}>
+        <SectionHeader 
+          title="analytics" 
+          subtitle="real-time tracking & history" 
+          theme={theme}
+        />
         
-        <div className="bg-white p-8 shadow-sm border border-gray-200 h-[calc(100vh-250px)] min-w-[800px]">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex flex-col">
-              <h3 className="text-2xl font-light">Parameter Analysis</h3>
-              <select 
-                className="mt-2 bg-gray-50 border border-gray-200 text-xs font-bold uppercase p-2 outline-none"
-                value={analyticsParam}
-                onChange={(e) => setAnalyticsParam(e.target.value)}
-              >
-                {telemetry ? Object.keys(telemetry).map(key => (
-                  <option key={key} value={key}>{key}</option>
-                )) : (
-                  <option value="can.temperature">can.temperature</option>
+        <div className="grid grid-cols-12 gap-6 h-[calc(100vh-250px)] min-w-[1000px]">
+          {/* Left Panel: Map/Chart */}
+          <div className={cn(
+            "col-span-8 p-8 shadow-sm border flex flex-col",
+            theme === 'dark' ? "bg-[#111] border-white/10" : "bg-white border-gray-200"
+          )}>
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex flex-col">
+                <h3 className="text-2xl font-light">
+                  {viewMode === 'map' ? 'Live Location' : `Analysis: ${analyticsParam}`}
+                </h3>
+                {viewMode === 'chart' && (
+                  <select 
+                    className={cn(
+                      "mt-2 border text-xs font-bold uppercase p-2 outline-none focus:border-metro-blue",
+                      theme === 'dark' ? "bg-black border-white/20 text-white" : "bg-gray-50 border-gray-200 text-black"
+                    )}
+                    value={analyticsParam}
+                    onChange={(e) => setAnalyticsParam(e.target.value)}
+                  >
+                    {allAvailableParams.map(key => (
+                      <option key={key} value={key}>{key}</option>
+                    ))}
+                  </select>
                 )}
-              </select>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setViewMode('map')}
+                  className={cn(
+                    "p-2 border transition-colors",
+                    viewMode === 'map' 
+                      ? "bg-metro-blue text-white border-metro-blue" 
+                      : (theme === 'dark' ? "bg-black border-white/20 text-gray-400 hover:bg-white/5" : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50")
+                  )}
+                  title="Map View"
+                >
+                  <MapIcon size={20} />
+                </button>
+                <button 
+                  onClick={() => setViewMode('chart')}
+                  className={cn(
+                    "p-2 border transition-colors",
+                    viewMode === 'chart' 
+                      ? "bg-metro-blue text-white border-metro-blue" 
+                      : (theme === 'dark' ? "bg-black border-white/20 text-gray-400 hover:bg-white/5" : "bg-white border-gray-200 text-gray-400 hover:bg-gray-50")
+                  )}
+                  title="Chart View"
+                >
+                  <BarChart3 size={20} />
+                </button>
+              </div>
             </div>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-metro-red rounded-full" />
-                <span className="text-xs font-bold uppercase">{analyticsParam}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-metro-blue rounded-full" />
-                <span className="text-xs font-bold uppercase">Battery</span>
-              </div>
+
+            <div className="flex-1 relative min-h-0">
+              {viewMode === 'chart' ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#e51400" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#e51400" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorBat" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#00aba9" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#00aba9" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? "#333" : "#eee"} />
+                    <XAxis 
+                      dataKey="time" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fontWeight: 700, fill: theme === 'dark' ? '#666' : '#999' }}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fontWeight: 700, fill: theme === 'dark' ? '#666' : '#999' }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: theme === 'dark' ? '#111' : '#fff',
+                        border: 'none', 
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', 
+                        borderRadius: '0',
+                        color: theme === 'dark' ? '#fff' : '#000'
+                      }}
+                      labelStyle={{ fontWeight: 800, marginBottom: '4px' }}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#e51400" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorValue)" 
+                      name={analyticsParam}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="battery" 
+                      stroke="#00aba9" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorBat)" 
+                      name="Battery Level"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={cn(
+                  "w-full h-full relative border overflow-hidden",
+                  theme === 'dark' ? "bg-black border-white/10" : "bg-gray-100 border-gray-200"
+                )}>
+                  {lat && lon ? (
+                    <iframe 
+                      width="100%" 
+                      height="100%" 
+                      frameBorder="0" 
+                      scrolling="no" 
+                      marginHeight={0} 
+                      marginWidth={0} 
+                      src={`https://maps.google.com/maps?q=${lat},${lon}&z=15&output=embed`}
+                      className={cn(theme === 'dark' ? "grayscale invert contrast-125 opacity-80" : "grayscale contrast-125")}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                      <MapPin size={48} className="mb-4 opacity-20" />
+                      <p className="text-xl font-light text-center px-4">No location data available for this device</p>
+                      <p className="text-xs font-bold uppercase mt-2 opacity-60">Check position.latitude / position.longitude</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <ResponsiveContainer width="100%" height="80%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#e51400" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#e51400" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorBat" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00aba9" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#00aba9" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-              <XAxis 
-                dataKey="time" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fontWeight: 700, fill: '#999' }}
-              />
-              <YAxis 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fontWeight: 700, fill: '#999' }}
-              />
-              <Tooltip 
-                contentStyle={{ border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', borderRadius: '0' }}
-                labelStyle={{ fontWeight: 800, marginBottom: '4px' }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="value" 
-                stroke="#e51400" 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorValue)" 
-              />
-              <Area 
-                type="monotone" 
-                dataKey="battery" 
-                stroke="#00aba9" 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorBat)" 
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {/* Right Panel: Parameter List */}
+          <div className={cn(
+            "col-span-4 p-8 shadow-sm border flex flex-col overflow-hidden",
+            theme === 'dark' ? "bg-[#111] border-white/10" : "bg-white border-gray-200"
+          )}>
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-light">Live Parameters</h3>
+              <List size={20} className="text-gray-400" />
+            </div>
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+              {allAvailableParams.map(key => {
+                const data = telemetry?.[key];
+                const isLocation = key.includes('latitude') || key.includes('longitude');
+                return (
+                  <div 
+                    key={key} 
+                    className={cn(
+                      "flex justify-between items-center border-b pb-3 group cursor-pointer transition-colors px-2",
+                      theme === 'dark' ? "border-white/5 hover:bg-white/5" : "border-gray-100 hover:bg-gray-50",
+                      analyticsParam === key && (theme === 'dark' ? "border-metro-blue bg-metro-blue/20" : "border-metro-blue bg-blue-50/30")
+                    )}
+                    onClick={() => {
+                      setAnalyticsParam(key);
+                      setViewMode('chart');
+                    }}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold uppercase text-gray-400 tracking-widest group-hover:text-metro-blue transition-colors">
+                        {key}
+                      </span>
+                      <span className="text-lg font-light">
+                        {typeof data?.value === 'boolean' ? (data.value ? 'TRUE' : 'FALSE') : (data?.value ?? '--')}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      {data?.unit && <span className="text-[10px] font-bold text-metro-blue uppercase">{data.unit}</span>}
+                      {isLocation && <MapPin size={12} className="text-metro-violet mt-1" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* SECTION 3: SETTINGS / ABOUT */}
       <section className="panorama-section">
-        <SectionHeader title="settings" subtitle="system configuration" />
+        <SectionHeader 
+          title="settings" 
+          subtitle="system configuration" 
+          theme={theme}
+        />
         
         <div className="space-y-12 max-w-md">
           <div className="group cursor-pointer" onClick={() => {
             const token = prompt('Enter Flespi Token:');
             if (token) handleSetToken(token);
           }}>
-            <div className="flex justify-between items-center border-b border-gray-300 pb-4 group-hover:border-metro-blue transition-colors">
+            <div className={cn(
+              "flex justify-between items-center border-b pb-4 transition-colors",
+              theme === 'dark' ? "border-white/10 group-hover:border-metro-blue" : "border-gray-300 group-hover:border-metro-blue"
+            )}>
               <div>
                 <h4 className="text-2xl font-light">Change Token</h4>
                 <p className="text-sm text-gray-500">Override default Flespi credentials</p>
@@ -514,7 +717,10 @@ export default function Dashboard() {
               localStorage.removeItem('metro_tiles');
             }
           }}>
-            <div className="flex justify-between items-center border-b border-gray-300 pb-4 group-hover:border-metro-orange transition-colors">
+            <div className={cn(
+              "flex justify-between items-center border-b pb-4 transition-colors",
+              theme === 'dark' ? "border-white/10 group-hover:border-metro-orange" : "border-gray-300 group-hover:border-metro-orange"
+            )}>
               <div>
                 <h4 className="text-2xl font-light">Reset Layout</h4>
                 <p className="text-sm text-gray-500">Restore default tile configuration</p>
@@ -524,7 +730,10 @@ export default function Dashboard() {
           </div>
 
           <div className="group cursor-pointer" onClick={handleLogout}>
-            <div className="flex justify-between items-center border-b border-gray-300 pb-4 group-hover:border-metro-red transition-colors">
+            <div className={cn(
+              "flex justify-between items-center border-b pb-4 transition-colors",
+              theme === 'dark' ? "border-white/10 group-hover:border-metro-red" : "border-gray-300 group-hover:border-metro-red"
+            )}>
               <div>
                 <h4 className="text-2xl font-light text-metro-red">Sign Out</h4>
                 <p className="text-sm text-gray-500">Clear custom token and reset session</p>
@@ -534,7 +743,10 @@ export default function Dashboard() {
           </div>
 
           <div className="group cursor-pointer" onClick={() => alert('Metro IoT v1.0.6\nBuilt with AI Studio\nFlespi Integration Active')}>
-            <div className="flex justify-between items-center border-b border-gray-300 pb-4 group-hover:border-metro-blue transition-colors">
+            <div className={cn(
+              "flex justify-between items-center border-b pb-4 transition-colors",
+              theme === 'dark' ? "border-white/10 group-hover:border-metro-blue" : "border-gray-300 group-hover:border-metro-blue"
+            )}>
               <div>
                 <h4 className="text-2xl font-light">About Metro IoT</h4>
                 <p className="text-sm text-gray-500">Version 1.0.6 (Stable)</p>
@@ -618,7 +830,10 @@ export default function Dashboard() {
 
       {/* ALL PARAMETERS MODAL */}
       {showAllParams && (
-        <div className="fixed inset-0 z-[100] bg-black/90 text-white p-8 overflow-y-auto">
+        <div className={cn(
+          "fixed inset-0 z-[100] p-8 overflow-y-auto transition-colors",
+          theme === 'dark' ? "bg-black/95 text-white" : "bg-white/95 text-black"
+        )}>
           <div className="max-w-4xl mx-auto">
             <div className="flex justify-between items-center mb-12">
               <h2 className="text-6xl font-light tracking-tight lowercase">all parameters</h2>
@@ -632,7 +847,10 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {telemetry ? Object.entries(telemetry).map(([key, data]: [string, any]) => (
-                <div key={key} className="border border-white/20 p-4 hover:bg-white/5 transition-colors">
+                <div key={key} className={cn(
+                  "border p-4 transition-colors",
+                  theme === 'dark' ? "border-white/20 hover:bg-white/5" : "border-black/10 hover:bg-black/5"
+                )}>
                   <p className="text-[10px] font-bold uppercase text-gray-500 mb-1 tracking-widest">{key}</p>
                   <p className="text-2xl font-light break-all">
                     {typeof data.value === 'boolean' ? (data.value ? 'TRUE' : 'FALSE') : (data.value ?? 'N/A')}
@@ -651,17 +869,101 @@ export default function Dashboard() {
       )}
 
       {/* BOTTOM APP BAR (Metro Style) */}
-      <div className="fixed bottom-0 left-0 right-0 h-16 bg-metro-green flex items-center justify-center gap-12 px-8 z-50">
+      <div className={cn(
+        "fixed bottom-0 left-0 right-0 h-16 flex items-center justify-center gap-12 px-8 z-50 transition-colors",
+        theme === 'dark' ? "bg-metro-green" : "bg-metro-blue"
+      )}>
         <button 
           onClick={handleManualRefresh}
-          className="p-2 rounded-full border-2 border-white text-white hover:bg-white hover:text-metro-green transition-all"
+          className="p-2 rounded-full border-2 border-white text-white hover:bg-white hover:text-current transition-all"
         >
           <RefreshCw size={24} className={cn(telemetryLoading && "animate-spin")} />
         </button>
-        <div className="flex gap-1">
-          <div className="w-1 h-1 bg-white rounded-full" />
-          <div className="w-1 h-1 bg-white rounded-full" />
-          <div className="w-1 h-1 bg-white rounded-full" />
+        
+        <div className="relative">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMenuOpen(!isMenuOpen);
+            }}
+            className="p-2 rounded-full border-2 border-white text-white hover:bg-white hover:text-current transition-all"
+          >
+            <MoreHorizontal size={24} />
+          </button>
+
+          <AnimatePresence>
+            {isMenuOpen && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className={cn(
+                  "absolute bottom-16 left-1/2 -translate-x-1/2 w-64 p-2 shadow-2xl border-2 border-white z-[60]",
+                  theme === 'dark' ? "bg-[#111] text-white" : "bg-white text-black"
+                )}
+              >
+                <div className="flex flex-col gap-1">
+                  <button 
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      if (effectiveDeviceId) {
+                        window.open(`/parameters/${effectiveDeviceId}`, '_blank');
+                      }
+                    }}
+                    className="flex items-center gap-3 p-4 hover:bg-metro-blue hover:text-white transition-colors text-left"
+                  >
+                    <ExternalLink size={20} />
+                    <span className="text-xs font-bold uppercase tracking-widest">Full Parameters</span>
+                  </button>
+
+                  <div className="h-[1px] bg-white/10 my-1" />
+
+                  <button 
+                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                    className="flex items-center justify-between p-4 hover:bg-metro-orange hover:text-white transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                      <span className="text-xs font-bold uppercase tracking-widest">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                    </div>
+                  </button>
+
+                  <div className="h-[1px] bg-white/10 my-1" />
+
+                  <div className="p-4">
+                    <span className="text-[9px] font-bold uppercase tracking-widest opacity-40 block mb-3">Polling Speed</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => setPollingSpeed('slow')}
+                        className={cn(
+                          "flex flex-col items-center gap-2 p-3 border-2 transition-all",
+                          pollingSpeed === 'slow' 
+                            ? (theme === 'dark' ? "border-metro-green bg-metro-green/20" : "border-metro-green bg-metro-green/10")
+                            : "border-transparent opacity-40 hover:opacity-100"
+                        )}
+                      >
+                        <Clock size={16} />
+                        <span className="text-[8px] font-bold uppercase">Slow</span>
+                      </button>
+                      <button 
+                        onClick={() => setPollingSpeed('fast')}
+                        className={cn(
+                          "flex flex-col items-center gap-2 p-3 border-2 transition-all",
+                          pollingSpeed === 'fast' 
+                            ? (theme === 'dark' ? "border-metro-red bg-metro-red/20" : "border-metro-red bg-metro-red/10")
+                            : "border-transparent opacity-40 hover:opacity-100"
+                        )}
+                      >
+                        <Zap size={16} />
+                        <span className="text-[8px] font-bold uppercase">Fast</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
