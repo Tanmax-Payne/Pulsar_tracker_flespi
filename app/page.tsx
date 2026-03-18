@@ -48,20 +48,18 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import dynamic from 'next/dynamic';
 
-// Dynamically import Leaflet components to avoid SSR issues
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
-const Polyline = dynamic(() => import('react-leaflet').then(mod => mod.Polyline), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
-const MapUpdater = dynamic(() => Promise.resolve(({ center }: { center: [number, number] }) => {
-  const { useMap } = require('react-leaflet');
-  const map = useMap();
-  useEffect(() => {
-    map.setView(center);
-  }, [center, map]);
-  return null;
-}), { ssr: false });
+// Dynamically import MapSection to avoid SSR issues
+const MapSection = dynamic(() => import('../components/MapSection'), { 
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-slate-800">
+      <div className="flex flex-col items-center gap-2">
+        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <span className="text-xs font-medium text-gray-500">Loading Map...</span>
+      </div>
+    </div>
+  )
+});
 
 // --- Types ---
 
@@ -83,8 +81,8 @@ const DEFAULT_TILES: TileConfig[] = [
   { id: 't4', type: 'telemetry', title: 'signal', key: 'gsm.signal.level', unit: 'dbm', className: 'bg-metro-cyan text-white', size: 'small' },
   { id: 't5', type: 'location', title: 'location', className: 'bg-metro-violet text-white', size: 'small' },
   { id: 't6', type: 'telemetry', title: 'temp', key: 'can.temperature', unit: '°C', className: 'bg-metro-red text-white', size: 'small' },
-  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-metro-orange text-white', size: 'small' },
-  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-metro-green text-white', size: 'small' },
+  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-metro-orange text-gray-600', size: 'small' },
+  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-metro-green text-gray-600', size: 'small' },
 ];
 
 const fetcher = async (url: string) => {
@@ -126,7 +124,8 @@ const Tile = React.memo(({
   className, 
   size = 'medium',
   loading = false,
-  theme = 'dark'
+  theme = 'dark',
+  onClick
 }: { 
   title: string; 
   value: any; 
@@ -136,6 +135,7 @@ const Tile = React.memo(({
   size?: 'small' | 'medium' | 'large' | 'wide';
   loading?: boolean;
   theme?: 'light' | 'dark';
+  onClick?: () => void;
 }) => {
   const sizeClasses = {
     small: 'col-span-1 row-span-1 h-32 w-32',
@@ -146,15 +146,19 @@ const Tile = React.memo(({
 
   // Determine if the tile should have dark or light text if not explicitly set in className
   const hasTextColor = className?.includes('text-');
-  const defaultTextColor = theme === 'dark' ? 'text-white' : 'text-slate-900';
+  const defaultTextColor = theme === 'dark' ? 'text-white' : 'text-gray-600';
+
 
   return (
-    <div className={cn(
-      "relative p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden shadow-md",
-      sizeClasses[size as keyof typeof sizeClasses],
-      !hasTextColor && defaultTextColor,
-      className
-    )}>
+    <div 
+      onClick={onClick}
+      className={cn(
+        "relative p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden shadow-md",
+        sizeClasses[size as keyof typeof sizeClasses],
+        !hasTextColor && defaultTextColor,
+        className
+      )}
+    >
       <div className="flex justify-between items-start">
         <span className="text-[10px] font-bold uppercase tracking-widest opacity-90">{title}</span>
         {Icon && <Icon size={18} className="opacity-70" />}
@@ -219,8 +223,12 @@ export default function Dashboard() {
   const [tiles, setTiles] = useState<TileConfig[]>(DEFAULT_TILES);
   const [customToken, setCustomToken] = useState<string | null>(null);
 
+  const [trailColor, setTrailColor] = useState('#aa00ff');
+  const [trailWeight, setTrailWeight] = useState(4);
+  const [trailHidden, setTrailHidden] = useState(false);
+  const [trailDuration, setTrailDuration] = useState(1); // in hours
+
   useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
     const savedTheme = localStorage.getItem('metro_theme') as 'light' | 'dark';
     if (savedTheme) setTheme(savedTheme);
 
@@ -229,18 +237,15 @@ export default function Dashboard() {
 
     const savedToken = localStorage.getItem('flespi_token');
     if (savedToken) setCustomToken(savedToken);
-    /* eslint-enable react-hooks/set-state-in-effect */
 
-    // Fix for Leaflet default icon issue
-    if (typeof window !== 'undefined') {
-      const L = require('leaflet');
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-      });
-    }
+    const savedTrailColor = localStorage.getItem('metro_trail_color');
+    if (savedTrailColor) setTrailColor(savedTrailColor);
+
+    const savedTrailWeight = localStorage.getItem('metro_trail_weight');
+    if (savedTrailWeight) setTrailWeight(parseInt(savedTrailWeight));
+
+    const savedTrailDuration = localStorage.getItem('metro_trail_duration');
+    if (savedTrailDuration) setTrailDuration(parseFloat(savedTrailDuration));
 
     setMounted(true);
   }, []);
@@ -256,6 +261,24 @@ export default function Dashboard() {
       localStorage.setItem('metro_tiles', JSON.stringify(tiles));
     }
   }, [tiles, mounted]);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('metro_trail_color', trailColor);
+    }
+  }, [trailColor, mounted]);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('metro_trail_weight', trailWeight.toString());
+    }
+  }, [trailWeight, mounted]);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('metro_trail_duration', trailDuration.toString());
+    }
+  }, [trailDuration, mounted]);
 
   const intervals = useMemo(() => ({
     devices: pollingSpeed === 'fast' ? 60000 : 300000,
@@ -488,7 +511,12 @@ export default function Dashboard() {
 
   const trail = useMemo(() => {
     if (!Array.isArray(history)) return [];
+    
+    const now = Math.floor(Date.now() / 1000);
+    const cutoff = now - (trailDuration * 3600);
+
     return history
+      .filter((msg: any) => msg.timestamp >= cutoff)
       .map((msg: any) => {
         const lat = msg['position.latitude'] || msg['latitude'];
         const lon = msg['position.longitude'] || msg['longitude'];
@@ -498,7 +526,7 @@ export default function Dashboard() {
         return null;
       })
       .filter((p): p is [number, number] => p !== null);
-  }, [history]);
+  }, [history, trailDuration]);
 
   if (!mounted) return null;
 
@@ -587,22 +615,31 @@ export default function Dashboard() {
         );
       case 'selector':
         return (
-          <div 
-            key={tile.id}
-            onContextMenu={(e) => handleTileContextMenu(e, tile.id)}
-            className={cn("col-span-2 row-span-1 p-4 flex flex-col justify-between", tile.className)}
-          >
-            <span className="text-xs font-semibold uppercase tracking-wider opacity-80">{tile.title}</span>
-            <select 
-              className="bg-transparent text-2xl font-light outline-none border-none cursor-pointer text-white"
-              value={effectiveDeviceId || ''}
-              onChange={(e) => setSelectedDeviceId(Number(e.target.value))}
-            >
-              <option value="" disabled className="text-black">Select Device</option>
-              {Array.isArray(devices) && devices.map((d: any) => (
-                <option key={d.id} value={d.id} className="text-black">{d.name}</option>
-              ))}
-            </select>
+          <div onContextMenu={(e) => handleTileContextMenu(e, tile.id)} key={tile.id}>
+            <div className={cn(
+              "relative p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden shadow-md h-64 w-[32rem] col-span-4 row-span-2",
+              tile.className
+            )}>
+              <div className="flex justify-between items-start">
+                <span className="text-xs font-semibold uppercase tracking-widest opacity-90">{tile.title}</span>
+                <Globe size={18} className="opacity-70" />
+              </div>
+              <select 
+                className="bg-transparent text-4xl font-light outline-none border-none cursor-pointer text-white w-full"
+                value={effectiveDeviceId || ''}
+                onChange={(e) => setSelectedDeviceId(Number(e.target.value))}
+              >
+                <option value="" disabled className="text-black">Select Device</option>
+                {Array.isArray(devices) && devices.map((d: any) => (
+                  <option key={d.id} value={d.id} className="text-black">{d.name}</option>
+                ))}
+              </select>
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">
+                  {Array.isArray(devices) ? `${devices.length} devices found` : 'Searching...'}
+                </span>
+              </div>
+            </div>
           </div>
         );
       case 'telemetry':
@@ -620,46 +657,39 @@ export default function Dashboard() {
         );
       case 'location':
         return (
-          <div 
-            key={tile.id}
-            onContextMenu={(e) => handleTileContextMenu(e, tile.id)}
-            className={cn("col-span-1 row-span-1 p-4 flex flex-col justify-between cursor-pointer active:scale-95 transition-transform", tile.className)}
-            onClick={() => lat && lon && window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank')}
-          >
-            <div className="flex justify-between items-start">
-              <span className="text-xs font-semibold uppercase tracking-wider opacity-80">{tile.title}</span>
-              <MapPin size={20} className="opacity-60" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-light leading-tight">
-                {lat ? `${lat.toFixed(4)}, ${lon.toFixed(4)}` : 'No GPS Fix'}
-              </span>
-              {lat && <span className="text-[10px] font-bold uppercase mt-1 opacity-60">view map</span>}
-            </div>
+          <div onContextMenu={(e) => handleTileContextMenu(e, tile.id)} key={tile.id}>
+            <Tile 
+              {...commonProps}
+              value={lat ? `${lat.toFixed(4)}, ${lon.toFixed(4)}` : 'No GPS Fix'}
+              icon={MapPin}
+              theme={theme}
+              onClick={() => lat && lon && window.open(`https://www.google.com/maps?q=${lat},${lon}`, '_blank')}
+            />
           </div>
         );
       case 'all-params':
         return (
-          <div 
-            key={tile.id}
-            onContextMenu={(e) => handleTileContextMenu(e, tile.id)}
-            className={cn("col-span-1 row-span-1 p-4 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform", tile.className)}
-            onClick={() => setShowAllParams(true)}
-          >
-            <List size={32} />
-            <span className="text-[10px] uppercase font-bold mt-2 text-center">{tile.title}</span>
+          <div onContextMenu={(e) => handleTileContextMenu(e, tile.id)} key={tile.id}>
+            <Tile 
+              {...commonProps}
+              value="LIST"
+              icon={List}
+              theme={theme}
+              onClick={() => setShowAllParams(true)}
+            />
           </div>
         );
       case 'refresh':
         return (
-          <div 
-            key={tile.id}
-            onContextMenu={(e) => handleTileContextMenu(e, tile.id)}
-            className={cn("col-span-1 row-span-1 p-4 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform", tile.className)}
-            onClick={handleManualRefresh}
-          >
-            <RefreshCw size={32} className={cn(telemetryLoading && "animate-spin")} />
-            <span className="text-[10px] uppercase font-bold mt-2">{tile.title}</span>
+          <div onContextMenu={(e) => handleTileContextMenu(e, tile.id)} key={tile.id}>
+            <Tile 
+              {...commonProps}
+              value={telemetryLoading ? '...' : 'OK'}
+              icon={RefreshCw}
+              theme={theme}
+              loading={telemetryLoading}
+              onClick={handleManualRefresh}
+            />
           </div>
         );
       default:
@@ -922,40 +952,116 @@ export default function Dashboard() {
                   theme === 'dark' ? "bg-black border-white/10" : "bg-gray-100 border-gray-200"
                 )}>
                   {lat && lon ? (
-                    <MapContainer 
-                      center={[lat, lon]} 
-                      zoom={15} 
-                      style={{ height: '100%', width: '100%' }}
-                      className={cn(theme === 'dark' ? "grayscale invert contrast-125 opacity-80" : "grayscale contrast-125")}
-                    >
-                      <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                      />
-                      <Marker position={[lat, lon]}>
-                        <Popup>
-                          <div className="text-xs font-bold uppercase">
-                            Current Location<br/>
-                            {lat.toFixed(4)}, {lon.toFixed(4)}
-                          </div>
-                        </Popup>
-                      </Marker>
-                      {trail.length > 1 && (
-                        <Polyline 
-                          positions={trail} 
-                          color="#aa00ff" 
-                          weight={4} 
-                          opacity={0.6} 
-                          dashArray="10, 10"
-                        />
-                      )}
-                      <MapUpdater center={[lat, lon]} />
-                    </MapContainer>
+                    <MapSection 
+                      lat={lat} 
+                      lon={lon} 
+                      trail={trail} 
+                      trailColor={trailColor} 
+                      trailWeight={trailWeight} 
+                      trailHidden={trailHidden} 
+                    />
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400">
                       <MapPin size={48} className="mb-4 opacity-20" />
                       <p className="text-xl font-light text-center px-4">No location data available for this device</p>
                       <p className="text-xs font-bold uppercase mt-2 opacity-60">Check position.latitude / position.longitude</p>
+                    </div>
+                  )}
+
+                  {/* Trail Controls Overlay */}
+                  {lat && lon && (
+                    <div className={cn(
+                      "absolute top-4 right-4 z-[1000] p-3 shadow-2xl border flex flex-col gap-3 transition-all",
+                      theme === 'dark' ? "bg-black/80 border-white/10 text-white" : "bg-white/90 border-gray-200 text-black"
+                    )}>
+                      <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Trail Settings</span>
+                        <button 
+                          onClick={() => setTrailHidden(!trailHidden)}
+                          className={cn(
+                            "text-[9px] font-bold uppercase px-2 py-1 transition-colors",
+                            trailHidden ? "bg-metro-blue text-white" : "bg-gray-500/20 text-gray-400"
+                          )}
+                        >
+                          {trailHidden ? 'Show' : 'Hide'}
+                        </button>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2">
+                        <div className="flex justify-between items-center gap-4">
+                          <span className="text-[9px] font-bold uppercase opacity-60">Color</span>
+                          <div className="flex gap-1">
+                            {['#aa00ff', '#00aba9', '#e51400', '#a5c401', '#f09609'].map(c => (
+                              <button 
+                                key={c}
+                                onClick={() => {
+                                  setTrailColor(c);
+                                  setTrailHidden(false);
+                                }}
+                                className={cn(
+                                  "w-4 h-4 rounded-full border-2 transition-transform active:scale-90",
+                                  trailColor === c ? "border-white scale-110" : "border-transparent"
+                                )}
+                                style={{ backgroundColor: c }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex justify-between items-center gap-4">
+                          <span className="text-[9px] font-bold uppercase opacity-60">Weight</span>
+                          <input 
+                            type="range" 
+                            min="1" 
+                            max="10" 
+                            value={trailWeight} 
+                            onChange={(e) => setTrailWeight(parseInt(e.target.value))}
+                            className="w-24 accent-metro-blue"
+                          />
+                        </div>
+
+                        <div className="flex justify-between items-center gap-4">
+                          <span className="text-[9px] font-bold uppercase opacity-60">Duration</span>
+                          <select 
+                            value={trailDuration}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              setTrailDuration(val);
+                              
+                              // Also update fromTime to ensure we fetch enough history
+                              const now = new Date();
+                              const then = new Date();
+                              then.setMinutes(now.getMinutes() - (val * 60));
+                              setFromTime(then.toISOString().slice(0, 16));
+                              setToTime(now.toISOString().slice(0, 16));
+                            }}
+                            className={cn(
+                              "text-[9px] font-bold uppercase p-1 border outline-none",
+                              theme === 'dark' ? "bg-black border-white/20 text-white" : "bg-white border-gray-200 text-black"
+                            )}
+                          >
+                            <option value={0.25}>15 Mins</option>
+                            <option value={1}>1 Hour</option>
+                            <option value={3}>3 Hours</option>
+                            <option value={6}>6 Hours</option>
+                            <option value={12}>12 Hours</option>
+                            <option value={24}>24 Hours</option>
+                          </select>
+                        </div>
+
+                        <button 
+                          onClick={() => {
+                            // "Clearing" history in this context means hiding it until next data point or refresh
+                            // or we can just toggle hidden state. The request says "clear trail history".
+                            // Since we fetch history from API, we can't easily "delete" it from Flespi here.
+                            // We'll interpret "clear" as "hide current trail" or "reset trail view".
+                            setTrailHidden(true);
+                          }}
+                          className="mt-1 w-full py-1.5 bg-metro-red text-white text-[9px] font-bold uppercase tracking-widest hover:bg-opacity-90 transition-all"
+                        >
+                          Clear Trail View
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
