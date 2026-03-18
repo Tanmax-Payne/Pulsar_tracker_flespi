@@ -49,3 +49,67 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
+) {
+  const searchParams = request.nextUrl.searchParams;
+  const token = searchParams.get('token') || process.env.FLESPI_TOKEN;
+  if (!token) return NextResponse.json({ error: 'FLESPI_TOKEN not configured' }, { status: 500 });
+
+  const { path } = await params;
+  if (path?.[0] === 'devices') {
+    try {
+      const body = await request.json();
+      const device = await FlespiService.createDevice(token, body.name, body.device_type_id || 1, body.ident);
+      return NextResponse.json(device);
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  }
+  return NextResponse.json({ error: 'Invalid API path' }, { status: 404 });
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
+) {
+  const searchParams = request.nextUrl.searchParams;
+  const token = searchParams.get('token') || process.env.FLESPI_TOKEN;
+  if (!token) return NextResponse.json({ error: 'FLESPI_TOKEN not configured' }, { status: 500 });
+
+  const { path } = await params;
+  if (path?.[0] === 'devices' && path.length === 2) {
+    try {
+      const deviceId = parseInt(path[1]);
+      const body = await request.json();
+      const device = await FlespiService.updateDevice(token, deviceId, body);
+      return NextResponse.json(device);
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  }
+  return NextResponse.json({ error: 'Invalid API path' }, { status: 404 });
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ path?: string[] }> }
+) {
+  const searchParams = request.nextUrl.searchParams;
+  const token = searchParams.get('token') || process.env.FLESPI_TOKEN;
+  if (!token) return NextResponse.json({ error: 'FLESPI_TOKEN not configured' }, { status: 500 });
+
+  const { path } = await params;
+  if (path?.[0] === 'devices' && path.length === 2) {
+    try {
+      const deviceId = parseInt(path[1]);
+      await FlespiService.deleteDevice(token, deviceId);
+      return NextResponse.json({ success: true });
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+  }
+  return NextResponse.json({ error: 'Invalid API path' }, { status: 404 });
+}

@@ -77,14 +77,14 @@ interface TileConfig {
 }
 
 const DEFAULT_TILES: TileConfig[] = [
-  { id: 't1', type: 'status', title: 'status', className: 'bg-[#a4c400] text-white', size: 'medium' },
-  { id: 't2', type: 'selector', title: 'switch device', className: 'bg-[#00aba9] text-white', size: 'wide' },
-  { id: 't3', type: 'telemetry', title: 'battery', key: 'battery.level', unit: '%', className: 'bg-[#f09609] text-white', size: 'small' },
-  { id: 't4', type: 'telemetry', title: 'signal', key: 'gsm.signal.level', unit: 'dbm', className: 'bg-[#1ba1e2] text-white', size: 'small' },
-  { id: 't5', type: 'location', title: 'location', className: 'bg-[#aa00ff] text-white', size: 'small' },
-  { id: 't6', type: 'telemetry', title: 'temp', key: 'can.temperature', unit: '°C', className: 'bg-[#e51400] text-white', size: 'small' },
-  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-[#d80073] text-white', size: 'small' },
-  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-[#333333] text-white', size: 'small' },
+  { id: 't1', type: 'status', title: 'status', className: 'bg-slate-400 dark:bg-slate-600 text-white', size: 'medium' },
+  { id: 't2', type: 'selector', title: 'switch device', className: 'bg-metro-blue text-white', size: 'wide' },
+  { id: 't3', type: 'telemetry', title: 'battery', key: 'battery.level', unit: '%', className: 'bg-metro-orange text-white', size: 'small' },
+  { id: 't4', type: 'telemetry', title: 'signal', key: 'gsm.signal.level', unit: 'dbm', className: 'bg-metro-cyan text-white', size: 'small' },
+  { id: 't5', type: 'location', title: 'location', className: 'bg-metro-violet text-white', size: 'small' },
+  { id: 't6', type: 'telemetry', title: 'temp', key: 'can.temperature', unit: '°C', className: 'bg-metro-red text-white', size: 'small' },
+  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-metro-orange text-white', size: 'small' },
+  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-metro-green text-white', size: 'small' },
 ];
 
 const fetcher = async (url: string) => {
@@ -125,7 +125,8 @@ const Tile = React.memo(({
   icon: Icon, 
   className, 
   size = 'medium',
-  loading = false
+  loading = false,
+  theme = 'dark'
 }: { 
   title: string; 
   value: any; 
@@ -134,6 +135,7 @@ const Tile = React.memo(({
   className?: string;
   size?: 'small' | 'medium' | 'large' | 'wide';
   loading?: boolean;
+  theme?: 'light' | 'dark';
 }) => {
   const sizeClasses = {
     small: 'col-span-1 row-span-1 h-32 w-32',
@@ -142,10 +144,15 @@ const Tile = React.memo(({
     wide: 'col-span-4 row-span-2 h-64 w-[32rem]'
   };
 
+  // Determine if the tile should have dark or light text if not explicitly set in className
+  const hasTextColor = className?.includes('text-');
+  const defaultTextColor = theme === 'dark' ? 'text-white' : 'text-slate-900';
+
   return (
     <div className={cn(
       "relative p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden shadow-md",
       sizeClasses[size as keyof typeof sizeClasses],
+      !hasTextColor && defaultTextColor,
       className
     )}>
       <div className="flex justify-between items-start">
@@ -258,6 +265,10 @@ export default function Dashboard() {
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, tileId: string } | null>(null);
   const [isAddingTile, setIsAddingTile] = useState(false);
+  const [isDeviceManagerOpen, setIsDeviceManagerOpen] = useState(false);
+  const [deviceToEdit, setDeviceToEdit] = useState<any | null>(null);
+  const [isDeletingDevice, setIsDeletingDevice] = useState<number | null>(null);
+  const [newDeviceData, setNewDeviceData] = useState({ name: '', ident: '' });
   const [paramFilter, setParamFilter] = useState('');
 
   const handleSetToken = (token: string) => {
@@ -270,6 +281,64 @@ export default function Dashboard() {
     localStorage.removeItem('flespi_token');
     setCustomToken(null);
     window.location.reload();
+  };
+
+  const handleCreateDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDeviceData.name || !newDeviceData.ident) return;
+
+    try {
+      const url = customToken ? `/api/flespi/devices?token=${customToken}` : '/api/flespi/devices';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newDeviceData, device_type_id: 1 })
+      });
+      if (!res.ok) throw new Error('Failed to create device');
+      
+      setNewDeviceData({ name: '', ident: '' });
+      setIsDeviceManagerOpen(false);
+      mutate(customToken ? `/api/flespi/devices?token=${customToken}` : '/api/flespi/devices');
+    } catch (err) {
+      console.error(err);
+      alert('Error creating device');
+    }
+  };
+
+  const handleUpdateDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deviceToEdit) return;
+
+    try {
+      const url = customToken ? `/api/flespi/devices/${deviceToEdit.id}?token=${customToken}` : `/api/flespi/devices/${deviceToEdit.id}`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: deviceToEdit.name })
+      });
+      if (!res.ok) throw new Error('Failed to update device');
+      
+      setDeviceToEdit(null);
+      mutate(customToken ? `/api/flespi/devices?token=${customToken}` : '/api/flespi/devices');
+    } catch (err) {
+      console.error(err);
+      alert('Error updating device');
+    }
+  };
+
+  const handleDeleteDevice = async (id: number) => {
+    try {
+      const url = customToken ? `/api/flespi/devices/${id}?token=${customToken}` : `/api/flespi/devices/${id}`;
+      const res = await fetch(url, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete device');
+      
+      setIsDeletingDevice(null);
+      mutate(customToken ? `/api/flespi/devices?token=${customToken}` : '/api/flespi/devices');
+      if (selectedDeviceId === id) setSelectedDeviceId(null);
+    } catch (err) {
+      console.error(err);
+      alert('Error deleting device');
+    }
   };
 
   // Fetch devices - Much slower polling to avoid rate limits
@@ -511,7 +580,8 @@ export default function Dashboard() {
               {...commonProps}
               value={selectedDevice?.connected ? 'Online' : 'Offline'} 
               icon={Activity}
-              className={cn(commonProps.className, !selectedDevice?.connected && "bg-gray-400")}
+              className={cn(commonProps.className, !selectedDevice?.connected && "bg-gray-400 dark:bg-gray-600")}
+              theme={theme}
             />
           </div>
         );
@@ -544,6 +614,7 @@ export default function Dashboard() {
               unit={tile.unit}
               loading={telemetryLoading && !telemetry?.[tile.key!]}
               icon={tile.key?.includes('battery') ? Battery : tile.key?.includes('signal') ? Signal : Thermometer}
+              theme={theme}
             />
           </div>
         );
@@ -955,6 +1026,19 @@ export default function Dashboard() {
         />
         
         <div className="space-y-12 max-w-md">
+          <div className="group cursor-pointer" onClick={() => setIsDeviceManagerOpen(true)}>
+            <div className={cn(
+              "flex justify-between items-center border-b pb-4 transition-colors",
+              theme === 'dark' ? "border-white/10 group-hover:border-metro-blue" : "border-gray-300 group-hover:border-metro-blue"
+            )}>
+              <div>
+                <h4 className="text-2xl font-light">Manage Devices</h4>
+                <p className="text-sm text-gray-500">Add, edit or remove Flespi devices</p>
+              </div>
+              <SettingsIcon className="text-gray-400 group-hover:text-metro-blue" />
+            </div>
+          </div>
+
           <div className="group cursor-pointer" onClick={() => {
             const token = prompt('Enter Flespi Token:');
             if (token) handleSetToken(token);
@@ -1016,6 +1100,165 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+
+      {/* DEVICE MANAGER MODAL */}
+      <AnimatePresence>
+        {isDeviceManagerOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDeviceManagerOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={cn(
+                "relative w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl",
+                theme === 'dark' ? "bg-[#111] text-white" : "bg-white text-black"
+              )}
+            >
+              <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                <h3 className="text-2xl font-light lowercase">Device Management</h3>
+                <button onClick={() => setIsDeviceManagerOpen(false)} className="opacity-50 hover:opacity-100">
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                {/* Add Device Form */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-metro-blue">Add New Device</h4>
+                  <form onSubmit={handleCreateDevice} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input 
+                      type="text" 
+                      placeholder="Device Name"
+                      className={cn(
+                        "p-2 border text-sm outline-none focus:border-metro-blue",
+                        theme === 'dark' ? "bg-black border-white/20" : "bg-gray-50 border-gray-200"
+                      )}
+                      value={newDeviceData.name}
+                      onChange={e => setNewDeviceData({...newDeviceData, name: e.target.value})}
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Ident (IMEI)"
+                      className={cn(
+                        "p-2 border text-sm outline-none focus:border-metro-blue",
+                        theme === 'dark' ? "bg-black border-white/20" : "bg-gray-50 border-gray-200"
+                      )}
+                      value={newDeviceData.ident}
+                      onChange={e => setNewDeviceData({...newDeviceData, ident: e.target.value})}
+                    />
+                    <button 
+                      type="submit"
+                      className="bg-metro-blue text-white font-bold uppercase text-xs tracking-widest py-2 hover:bg-opacity-90 transition-all"
+                    >
+                      Create Device
+                    </button>
+                  </form>
+                </div>
+
+                {/* Device List */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-widest text-metro-blue">Existing Devices</h4>
+                  <div className="space-y-2">
+                    {Array.isArray(devices) && devices.map((d: any) => (
+                      <div 
+                        key={d.id} 
+                        className={cn(
+                          "p-4 border flex justify-between items-center group",
+                          theme === 'dark' ? "border-white/5 bg-white/5" : "border-gray-100 bg-gray-50"
+                        )}
+                      >
+                        {deviceToEdit?.id === d.id ? (
+                          <form onSubmit={handleUpdateDevice} className="flex-1 flex gap-2 mr-4">
+                            <input 
+                              type="text" 
+                              className={cn(
+                                "flex-1 p-1 border text-sm outline-none focus:border-metro-blue",
+                                theme === 'dark' ? "bg-black border-white/20" : "bg-white border-gray-200"
+                              )}
+                              value={deviceToEdit.name}
+                              onChange={e => setDeviceToEdit({...deviceToEdit, name: e.target.value})}
+                              autoFocus
+                            />
+                            <button type="submit" className="text-metro-blue"><Check size={20}/></button>
+                            <button type="button" onClick={() => setDeviceToEdit(null)} className="text-metro-red"><X size={20}/></button>
+                          </form>
+                        ) : (
+                          <div className="flex flex-col">
+                            <span className="text-lg font-light">{d.name}</span>
+                            <span className="text-[10px] opacity-50 font-mono">ID: {d.id}</span>
+                          </div>
+                        )}
+                        
+                        <div className="flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setDeviceToEdit(d)} className="text-gray-400 hover:text-metro-blue">
+                            <Edit3 size={18} />
+                          </button>
+                          <button onClick={() => setIsDeletingDevice(d.id)} className="text-gray-400 hover:text-metro-red">
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* DELETE CONFIRMATION DIALOG */}
+      <AnimatePresence>
+        {isDeletingDevice !== null && (
+          <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={cn(
+                "relative w-full max-w-md p-8 text-center shadow-2xl border",
+                theme === 'dark' ? "bg-[#111] border-white/10 text-white" : "bg-white border-gray-200 text-black"
+              )}
+            >
+              <Trash2 size={48} className="mx-auto mb-6 text-metro-red" />
+              <h3 className="text-3xl font-light mb-4 lowercase">Delete Device?</h3>
+              <p className="text-sm opacity-70 mb-8">
+                This action is permanent. The device will be removed from Flespi and all associated data will be lost.
+              </p>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setIsDeletingDevice(null)}
+                  className={cn(
+                    "flex-1 py-3 font-bold uppercase text-xs tracking-widest border transition-all",
+                    theme === 'dark' ? "border-white/20 hover:bg-white/5" : "border-gray-200 hover:bg-gray-50"
+                  )}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => handleDeleteDevice(isDeletingDevice)}
+                  className="flex-1 py-3 bg-metro-red text-white font-bold uppercase text-xs tracking-widest hover:bg-opacity-90 transition-all"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* CONTEXT MENU */}
       {contextMenu && (
