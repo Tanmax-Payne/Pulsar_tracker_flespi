@@ -31,7 +31,9 @@ import {
   Moon,
   Zap,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Lock,
+  Key
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -138,10 +140,10 @@ const Tile = React.memo(({
   onClick?: () => void;
 }) => {
   const sizeClasses = {
-    small: 'col-span-1 row-span-1 h-32 w-32',
-    medium: 'col-span-2 row-span-2 h-64 w-64',
-    large: 'col-span-3 row-span-3 h-96 w-96',
-    wide: 'col-span-4 row-span-2 h-64 w-[32rem]'
+    small: 'col-span-1 row-span-1 aspect-square w-full',
+    medium: 'col-span-2 row-span-2 aspect-square w-full',
+    large: 'col-span-2 md:col-span-3 row-span-2 md:row-span-3 aspect-square w-full',
+    wide: 'col-span-2 md:col-span-4 row-span-1 md:row-span-2 aspect-[2/1] w-full'
   };
 
   // Determine if the tile should have dark or light text if not explicitly set in className
@@ -153,28 +155,28 @@ const Tile = React.memo(({
     <div 
       onClick={onClick}
       className={cn(
-        "relative p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden shadow-md",
+        "relative p-3 md:p-4 flex flex-col justify-between transition-transform active:scale-95 cursor-pointer overflow-hidden shadow-md",
         sizeClasses[size as keyof typeof sizeClasses],
         !hasTextColor && defaultTextColor,
         className
       )}
     >
       <div className="flex justify-between items-start">
-        <span className="text-[10px] font-bold uppercase tracking-widest opacity-90">{title}</span>
-        {Icon && <Icon size={18} className="opacity-70" />}
+        <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest opacity-90 truncate mr-2">{title}</span>
+        {Icon && <Icon size={16} className="opacity-70 flex-shrink-0" />}
       </div>
-      <div className="flex flex-col">
+      <div className="flex flex-col overflow-hidden">
         {loading ? (
-          <div className="h-10 w-20 bg-white/20 animate-pulse" />
+          <div className="h-8 md:h-10 w-16 md:w-20 bg-white/20 animate-pulse" />
         ) : (
           <>
             <span className={cn(
-              "font-light leading-none",
-              size === 'small' ? "text-2xl" : "text-5xl"
+              "font-light leading-none truncate",
+              size === 'small' ? "text-xl md:text-2xl" : "text-3xl md:text-5xl"
             )}>
               {formatValue(value)}
             </span>
-            {unit && <span className="text-xs font-bold mt-1 opacity-90 uppercase tracking-tighter">{unit}</span>}
+            {unit && <span className="text-[9px] md:text-xs font-bold mt-1 opacity-90 uppercase tracking-tighter truncate">{unit}</span>}
           </>
         )}
       </div>
@@ -185,14 +187,14 @@ const Tile = React.memo(({
 Tile.displayName = 'Tile';
 
 const SectionHeader = ({ title, subtitle, theme }: { title: string; subtitle?: string; theme: 'light' | 'dark' }) => (
-  <div className="mb-8">
+  <div className="mb-4 md:mb-8">
     <h2 className={cn(
-      "text-6xl font-light tracking-tight lowercase transition-colors",
+      "text-3xl sm:text-4xl md:text-6xl font-light tracking-tight lowercase transition-colors leading-tight",
       theme === 'dark' ? "text-white" : "text-[#1a1a1a]"
     )}>{title}</h2>
     {subtitle && (
       <p className={cn(
-        "text-xl font-medium mt-2 transition-colors",
+        "text-base sm:text-lg md:text-xl font-medium mt-0 md:mt-2 transition-colors truncate max-w-full",
         theme === 'dark' ? "text-metro-blue" : "text-[#008c8a]"
       )}>{subtitle}</p>
     )}
@@ -203,6 +205,10 @@ const SectionHeader = ({ title, subtitle, theme }: { title: string; subtitle?: s
 
 export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+  
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [pollingSpeed, setPollingSpeed] = useState<'slow' | 'fast'>('slow');
@@ -258,6 +264,11 @@ export default function Dashboard() {
     if (savedTrailDuration) setTrailDuration(parseFloat(savedTrailDuration));
 
     setMounted(true);
+    
+    const authStatus = localStorage.getItem('metro_auth');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -298,6 +309,7 @@ export default function Dashboard() {
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, tileId: string } | null>(null);
   const [isAddingTile, setIsAddingTile] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [isDeviceManagerOpen, setIsDeviceManagerOpen] = useState(false);
   const [deviceToEdit, setDeviceToEdit] = useState<any | null>(null);
   const [isDeletingDevice, setIsDeletingDevice] = useState<number | null>(null);
@@ -540,6 +552,107 @@ export default function Dashboard() {
 
   if (!mounted) return null;
 
+  if (!isAuthenticated) {
+    return (
+      <div className={cn(
+        "fixed inset-0 z-[9999] flex items-center justify-center p-6 transition-colors duration-500",
+        theme === 'dark' ? "bg-[#1a1a1a]" : "bg-[#efefef]"
+      )}>
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={cn(
+            "w-full max-w-md p-8 shadow-2xl border-l-8",
+            theme === 'dark' ? "bg-black border-metro-blue" : "bg-white border-metro-blue"
+          )}
+        >
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-metro-blue text-white">
+              <Lock size={32} />
+            </div>
+            <div>
+              <h1 className={cn(
+                "text-3xl font-light tracking-tight lowercase",
+                theme === 'dark' ? "text-white" : "text-gray-900"
+              )}>
+                restricted access
+              </h1>
+              <p className={cn(
+                "text-xs font-bold uppercase tracking-widest opacity-60",
+                theme === 'dark' ? "text-gray-400" : "text-gray-500"
+              )}>
+                metro iot dashboard
+              </p>
+            </div>
+          </div>
+
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (passwordInput === 'Asd111Asd$$') {
+                setIsAuthenticated(true);
+                localStorage.setItem('metro_auth', 'true');
+              } else {
+                setPasswordError(true);
+                setTimeout(() => setPasswordError(false), 1000);
+              }
+            }}
+            className="space-y-6"
+          >
+            <div className="space-y-2">
+              <label className={cn(
+                "text-[10px] font-bold uppercase tracking-widest",
+                theme === 'dark' ? "text-gray-400" : "text-gray-500"
+              )}>
+                enter access key
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  autoFocus
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  className={cn(
+                    "w-full p-4 pl-12 text-xl font-light outline-none transition-all border-b-2",
+                    theme === 'dark' 
+                      ? "bg-white/5 text-white border-white/10 focus:border-metro-blue" 
+                      : "bg-black/5 text-gray-900 border-black/10 focus:border-metro-blue",
+                    passwordError && "border-metro-red animate-shake"
+                  )}
+                  placeholder="••••••••••••"
+                />
+                <Key className="absolute left-4 top-1/2 -translate-y-1/2 opacity-30" size={20} />
+              </div>
+              {passwordError && (
+                <p className="text-metro-red text-[10px] font-bold uppercase tracking-widest mt-2">
+                  invalid access key. try again.
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-metro-blue text-white p-4 font-bold uppercase tracking-widest text-xs hover:bg-metro-blue/90 transition-colors active:scale-[0.98]"
+            >
+              unlock dashboard
+            </button>
+          </form>
+
+          <div className="mt-12 flex justify-between items-center opacity-30">
+            <span className="text-[10px] font-bold uppercase tracking-tighter">
+              system secure
+            </span>
+            <div className="flex gap-2">
+              <div className="w-2 h-2 bg-metro-green rounded-full animate-pulse" />
+              <div className="w-2 h-2 bg-metro-blue rounded-full animate-pulse delay-75" />
+              <div className="w-2 h-2 bg-metro-orange rounded-full animate-pulse delay-150" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   const handleTileContextMenu = (e: React.MouseEvent, tileId: string) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, tileId });
@@ -722,18 +835,31 @@ export default function Dashboard() {
       
       {/* SECTION 1: OVERVIEW */}
       <section className="panorama-section">
-        <div className="flex justify-between items-end mb-8">
+        <div className="flex flex-col md:flex-row justify-between md:items-end mb-6 md:mb-8 gap-4">
           <SectionHeader 
             title="dashboard" 
             subtitle={selectedDevice?.name || 'loading devices...'} 
             theme={theme}
           />
-          <button 
-            onClick={() => setIsAddingTile(true)}
-            className="mb-2 p-2 bg-metro-green text-white rounded-full hover:scale-110 transition-transform shadow-lg"
-          >
-            <Plus size={24} />
-          </button>
+          <div className="flex gap-4 mb-2">
+            <button 
+              onClick={() => {
+                setIsAuthenticated(false);
+                localStorage.removeItem('metro_auth');
+              }}
+              className="p-2 bg-metro-red text-white rounded-full hover:scale-110 transition-transform shadow-lg"
+              title="Lock Dashboard"
+            >
+              <Lock size={24} />
+            </button>
+            <button 
+              onClick={() => setIsAddingTile(true)}
+              className="p-2 bg-metro-green text-white rounded-full hover:scale-110 transition-transform shadow-lg"
+              title="Add Tile"
+            >
+              <Plus size={24} />
+            </button>
+          </div>
         </div>
         
         {lastUpdated && (
@@ -745,7 +871,7 @@ export default function Dashboard() {
           </p>
         )}
         
-        <div className="grid grid-cols-4 gap-2 auto-rows-min">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 auto-rows-min">
           {devicesLoading && !devices ? (
             <div className="col-span-4 p-8 flex flex-col items-center justify-center">
               <RefreshCw size={48} className="animate-spin text-metro-blue opacity-20 mb-4" />
@@ -774,10 +900,10 @@ export default function Dashboard() {
           theme={theme}
         />
         
-        <div className="grid grid-cols-12 gap-6 h-[calc(100vh-250px)] min-w-[1000px]">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 h-auto md:h-[calc(100vh-250px)]">
           {/* Left Panel: Map/Chart */}
           <div className={cn(
-            "col-span-8 p-8 shadow-sm border flex flex-col",
+            "col-span-1 md:col-span-8 p-4 md:p-8 shadow-sm border flex flex-col min-h-[400px] md:min-h-0",
             theme === 'dark' ? "bg-[#111] border-white/10" : "bg-white border-gray-200"
           )}>
             <div className="flex justify-between items-center mb-6">
@@ -1081,7 +1207,7 @@ export default function Dashboard() {
 
           {/* Right Panel: Parameter List */}
           <div className={cn(
-            "col-span-4 p-8 shadow-sm border flex flex-col overflow-hidden",
+            "col-span-1 md:col-span-4 p-4 md:p-8 shadow-sm border flex flex-col overflow-hidden min-h-[300px] md:min-h-0",
             theme === 'dark' ? "bg-[#111] border-white/10" : "bg-white border-gray-200"
           )}>
             <div className="flex justify-between items-center mb-6">
@@ -1172,11 +1298,22 @@ export default function Dashboard() {
           </div>
 
           <div className="group cursor-pointer" onClick={() => {
-            if (confirm('Reset all dashboard tiles to default?')) {
-              setTiles(DEFAULT_TILES);
-              localStorage.removeItem('metro_tiles');
-            }
+            setIsAuthenticated(false);
+            localStorage.removeItem('metro_auth');
           }}>
+            <div className={cn(
+              "flex justify-between items-center border-b pb-4 transition-colors",
+              theme === 'dark' ? "border-white/10 group-hover:border-metro-red" : "border-gray-300 group-hover:border-metro-red"
+            )}>
+              <div>
+                <h4 className="text-2xl font-light">Lock Dashboard</h4>
+                <p className="text-sm text-gray-500">Require password for next access</p>
+              </div>
+              <Lock className="text-gray-400 group-hover:text-metro-red" />
+            </div>
+          </div>
+
+          <div className="group cursor-pointer" onClick={() => setShowResetConfirm(true)}>
             <div className={cn(
               "flex justify-between items-center border-b pb-4 transition-colors",
               theme === 'dark' ? "border-white/10 group-hover:border-metro-orange" : "border-gray-300 group-hover:border-metro-orange"
@@ -1455,6 +1592,56 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* RESET CONFIRM MODAL */}
+      <AnimatePresence>
+        {showResetConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={cn(
+                "w-full max-w-md p-8 rounded-2xl shadow-2xl border",
+                theme === 'dark' ? "bg-slate-900 border-white/10" : "bg-white border-gray-200"
+              )}
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-metro-orange/20 rounded-full">
+                  <RefreshCw className="text-metro-orange" size={32} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-light">Reset Layout?</h3>
+                  <p className="text-gray-500">This will restore all tiles to their default state.</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowResetConfirm(false)}
+                  className={cn(
+                    "flex-1 py-3 rounded-xl font-medium transition-colors",
+                    theme === 'dark' ? "bg-white/5 hover:bg-white/10" : "bg-gray-100 hover:bg-gray-200"
+                  )}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => {
+                    setTiles([...DEFAULT_TILES]);
+                    localStorage.removeItem('metro_tiles');
+                    setShowResetConfirm(false);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="flex-1 py-3 bg-metro-orange text-white rounded-xl font-medium hover:bg-opacity-90 transition-colors"
+                >
+                  Reset Now
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ALL PARAMETERS MODAL */}
       {showAllParams && (
