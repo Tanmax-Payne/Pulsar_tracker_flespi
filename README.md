@@ -1,18 +1,20 @@
-## tested locally, last version should work on Vercel.
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
-IMP: wont work without a full ACL token from flespi.io (requires read persmisssion of gw/devices and mqtt) 
-add your token to the .env 
+# Run and deploy your AI Studio app
 
+This contains everything you need to run your app locally.
 
-View your app in GAIS : https://tinyurl.com/59sww8d2
+View your app in AI Studio: https://ai.studio/apps/8d64850b-77f0-4b18-954c-f0ceafec71e1
 
 ## Run Locally
 
-**Prerequisites:**  Node.js 2x.x
+**Prerequisites:**  Node.js
 
 
 1. Install dependencies:
    `npm install`
-2. Set the `FLESPI_TOKEN` in [.env.local](.env.local) 
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`

@@ -81,8 +81,8 @@ const DEFAULT_TILES: TileConfig[] = [
   { id: 't4', type: 'telemetry', title: 'signal', key: 'gsm.signal.level', unit: 'dbm', className: 'bg-metro-cyan text-white', size: 'small' },
   { id: 't5', type: 'location', title: 'location', className: 'bg-metro-violet text-white', size: 'small' },
   { id: 't6', type: 'telemetry', title: 'temp', key: 'can.temperature', unit: '°C', className: 'bg-metro-red text-white', size: 'small' },
-  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-metro-orange text-gray-600', size: 'small' },
-  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-metro-green text-gray-600', size: 'small' },
+  { id: 't7', type: 'all-params', title: 'all params', className: 'bg-metro-orange text-white', size: 'small' },
+  { id: 't8', type: 'refresh', title: 'sync', className: 'bg-metro-green text-white', size: 'small' },
 ];
 
 const fetcher = async (url: string) => {
@@ -233,7 +233,17 @@ export default function Dashboard() {
     if (savedTheme) setTheme(savedTheme);
 
     const savedTiles = localStorage.getItem('metro_tiles');
-    if (savedTiles) setTiles(JSON.parse(savedTiles));
+    if (savedTiles) {
+      let parsedTiles = JSON.parse(savedTiles);
+      // Migration: Fix invisible text on sync/all-params tiles from previous version
+      parsedTiles = parsedTiles.map((t: any) => {
+        if ((t.id === 't7' || t.id === 't8') && t.className.includes('text-gray-600')) {
+          return { ...t, className: t.className.replace('text-gray-600', 'text-white') };
+        }
+        return t;
+      });
+      setTiles(parsedTiles);
+    }
 
     const savedToken = localStorage.getItem('flespi_token');
     if (savedToken) setCustomToken(savedToken);
