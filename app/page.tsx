@@ -1631,7 +1631,6 @@ export default function Dashboard() {
                     setTiles([...DEFAULT_TILES]);
                     localStorage.removeItem('metro_tiles');
                     setShowResetConfirm(false);
-                    setIsSettingsOpen(false);
                   }}
                   className="flex-1 py-3 bg-metro-orange text-white rounded-xl font-medium hover:bg-opacity-90 transition-colors"
                 >
