@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
 interface StatusBarProps {
   mqttConnected: boolean;
   loading: boolean;
@@ -8,7 +10,16 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ mqttConnected, loading, error, deviceCount }: StatusBarProps) {
-  const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const [now, setNow] = useState("");
+
+  useEffect(() => {
+    function tick() {
+      setNow(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    }
+    tick();
+    const id = setInterval(tick, 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <header className="status-bar">
