@@ -1,210 +1,91 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { getMessageRange, Message } from "@/lib/flespiApi";
 
 interface HistoryPanelProps {
-  token: string;
   deviceId: number;
-  onTrack: (points: Array<[number, number]>) => void; // [lat, lng][]
+  onTrack: (points: Array<[number, number]>) => void;
   onClose: () => void;
 }
 
 type Status = "idle" | "loading" | "done" | "error";
 
-export function HistoryPanel({ token, deviceId, onTrack, onClose }: HistoryPanelProps) {
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date();
-    d.setHours(d.getHours() - 1);
-    return toLocalIsoString(d).slice(0, 16);
-  });
-  const [toDate, setToDate] = useState(() => toLocalIsoString(new Date()).slice(0, 16));
+function toLocalIso(d: Date) {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+export function HistoryPanel({ deviceId, onTrack, onClose }: HistoryPanelProps) {
+  const [from, setFrom] = useState(() => { const d = new Date(); d.setHours(d.getHours()-1); return toLocalIso(d); });
+  const [to,   setTo  ] = useState(() => toLocalIso(new Date()));
   const [status, setStatus] = useState<Status>("idle");
-  const [pointCount, setPointCount] = useState(0);
-  const [error, setError] = useState("");
-  const abortRef = useRef(false);
+  const [count,  setCount ] = useState(0);
+  const [err,    setErr   ] = useState("");
 
-  const handleFetch = useCallback(async () => {
-    if (!fromDate || !toDate) return;
-    const fromTs = Math.floor(new Date(fromDate).getTime() / 1000);
-    const toTs = Math.floor(new Date(toDate).getTime() / 1000);
-    if (fromTs >= toTs) { setError("'From' must be before 'To'"); return; }
-    if (toTs - fromTs > 86400 * 7) { setError("Max range: 7 days"); return; }
+  const load = useCallback(async () => {
+    const fromTs = Math.floor(new Date(from).getTime() / 1000);
+    const toTs   = Math.floor(new Date(to  ).getTime() / 1000);
+    if (fromTs >= toTs)          { setErr("'From' must be before 'To'"); return; }
+    if (toTs - fromTs > 86400*7) { setErr("Max range: 7 days"); return; }
 
-    setStatus("loading");
-    setError("");
-    abortRef.current = false;
-
+    setStatus("loading"); setErr("");
     try {
-      const msgs: Message[] = await getMessageRange(token, deviceId, fromTs, toTs, 500);
-      if (abortRef.current) return;
-
-      const points: Array<[number, number]> = msgs
-        .filter((m) => m["position.latitude"] != null && m["position.longitude"] != null)
-        .map((m) => [m["position.latitude"] as number, m["position.longitude"] as number]);
-
-      setPointCount(points.length);
-      onTrack(points);
+      const msgs: Message[] = await getMessageRange(deviceId, fromTs, toTs, 500);
+      const pts = msgs
+        .filter(m => m["position.latitude"] != null && m["position.longitude"] != null)
+        .map(m => [m["position.latitude"]!, m["position.longitude"]!] as [number, number]);
+      setCount(pts.length);
+      onTrack(pts);
       setStatus("done");
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (e) {
+      setErr((e as Error).message);
       setStatus("error");
     }
-  }, [token, deviceId, fromDate, toDate, onTrack]);
+  }, [deviceId, from, to, onTrack]);
 
   return (
-    <div className="history-panel">
-      <div className="history-header">
-        <span className="history-title">⏱ HISTORY</span>
-        <button className="history-close" onClick={onClose} aria-label="Close history">×</button>
+    <div className="panel">
+      <div className="row-hdr">
+        <span className="title">⏱ HISTORY</span>
+        <button className="close" onClick={onClose} aria-label="Close">×</button>
       </div>
 
-      <div className="history-row">
-        <label className="history-label">From</label>
-        <input
-          type="datetime-local"
-          value={fromDate}
-          onChange={(e) => setFromDate(e.target.value)}
-          className="history-input"
-          max={toDate}
-        />
-      </div>
+      {(["From", "To"] as const).map(label => (
+        <div key={label} className="field">
+          <span className="label">{label.toUpperCase()}</span>
+          <input
+            type="datetime-local"
+            className="input"
+            value={label === "From" ? from : to}
+            onChange={e => label === "From" ? setFrom(e.target.value) : setTo(e.target.value)}
+          />
+        </div>
+      ))}
 
-      <div className="history-row">
-        <label className="history-label">To</label>
-        <input
-          type="datetime-local"
-          value={toDate}
-          onChange={(e) => setToDate(e.target.value)}
-          className="history-input"
-          min={fromDate}
-        />
-      </div>
-
-      <button
-        className="history-btn"
-        onClick={handleFetch}
-        disabled={status === "loading"}
-      >
+      <button className="btn" onClick={load} disabled={status === "loading"}>
         {status === "loading" ? "⟳ Fetching…" : "Load Track"}
       </button>
 
-      {status === "done" && (
-        <div className="history-result">
-          ✓ {pointCount} position{pointCount !== 1 ? "s" : ""} plotted
-        </div>
-      )}
-
-      {(status === "error" || error) && (
-        <div className="history-error">{error}</div>
-      )}
+      {status === "done"  && <p className="ok">✓ {count} point{count !== 1 ? "s" : ""} plotted</p>}
+      {(err || status === "error") && <p className="bad">{err}</p>}
 
       <style jsx>{`
-        .history-panel {
-          background: #161b22;
-          border: 1px solid #30363d;
-          border-radius: 6px;
-          padding: 10px;
-          font-family: "IBM Plex Mono", monospace;
-          font-size: 11px;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-
-        .history-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 2px;
-        }
-
-        .history-title {
-          font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          color: #58a6ff;
-        }
-
-        .history-close {
-          background: none;
-          border: none;
-          color: #8b949e;
-          font-size: 18px;
-          cursor: pointer;
-          padding: 0;
-          line-height: 1;
-        }
-
-        .history-close:hover { color: #c9d1d9; }
-
-        .history-row {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .history-label {
-          font-size: 9px;
-          color: #8b949e;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-        }
-
-        .history-input {
-          background: #0d1117;
-          border: 1px solid #30363d;
-          border-radius: 4px;
-          color: #c9d1d9;
-          font-family: inherit;
-          font-size: 10px;
-          padding: 4px 6px;
-          width: 100%;
-          box-sizing: border-box;
-          color-scheme: dark;
-        }
-
-        .history-input:focus {
-          outline: none;
-          border-color: #58a6ff;
-        }
-
-        .history-btn {
-          background: #1c2128;
-          border: 1px solid #388bfd;
-          border-radius: 4px;
-          color: #58a6ff;
-          font-family: inherit;
-          font-size: 11px;
-          font-weight: 600;
-          padding: 5px;
-          cursor: pointer;
-          transition: background 0.15s;
-          margin-top: 2px;
-        }
-
-        .history-btn:hover:not(:disabled) { background: #132235; }
-        .history-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .history-result {
-          font-size: 10px;
-          color: #3fb950;
-          text-align: center;
-          padding: 3px 0;
-        }
-
-        .history-error {
-          font-size: 10px;
-          color: #f85149;
-          padding: 3px 0;
-          word-break: break-word;
-        }
+        .panel { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px; font-family:"IBM Plex Mono",monospace; font-size:11px; display:flex; flex-direction:column; gap:6px; }
+        .row-hdr { display:flex; justify-content:space-between; align-items:center; }
+        .title { font-size:10px; font-weight:700; letter-spacing:.08em; color:#58a6ff; }
+        .close { background:none; border:none; color:#8b949e; font-size:18px; cursor:pointer; padding:0; line-height:1; }
+        .close:hover { color:#c9d1d9; }
+        .field { display:flex; flex-direction:column; gap:2px; }
+        .label { font-size:9px; color:#8b949e; letter-spacing:.06em; }
+        .input { background:#0d1117; border:1px solid #30363d; border-radius:4px; color:#c9d1d9; font-family:inherit; font-size:10px; padding:4px 6px; width:100%; color-scheme:dark; }
+        .input:focus { outline:none; border-color:#58a6ff; }
+        .btn { background:#1c2128; border:1px solid #388bfd; border-radius:4px; color:#58a6ff; font-family:inherit; font-size:11px; font-weight:600; padding:5px; cursor:pointer; }
+        .btn:hover:not(:disabled) { background:#132235; }
+        .btn:disabled { opacity:.5; cursor:not-allowed; }
+        .ok  { margin:0; font-size:10px; color:#3fb950; text-align:center; }
+        .bad { margin:0; font-size:10px; color:#f85149; word-break:break-word; }
       `}</style>
     </div>
   );
-}
-
-function toLocalIsoString(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

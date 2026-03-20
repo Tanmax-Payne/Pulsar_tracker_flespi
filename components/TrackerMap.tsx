@@ -189,7 +189,7 @@ export default function TrackerMap({ devices, selectedId, token, onSelect }: Tra
         {showHistory && selectedDevice && (
           <div style={{ width: 220 }}>
             <HistoryPanel
-              token={token}
+              
               deviceId={selectedDevice.info!.id}
               onTrack={handleTrack}
               onClose={() => setShowHistory(false)}

@@ -1,63 +1,39 @@
-/**
- * app/page.tsx  –  Pulsar Tracker Dashboard
- *
- * Grid layout (no overlapping):
- *   row 1: <StatusBar>           40px
- *   row 2: sidebar | map         1fr (fills viewport)
- *   row 3: <TelemetryStrip>      56px
- */
 "use client";
 
 import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useFlespiDevice } from "@/hooks/useFlespiDevice";
-import { StatusBar }       from "@/components/StatusBar";
-import { DeviceCard }      from "@/components/DeviceCard";
-import { TelemetryStrip }  from "@/components/TelemetryStrip";
-import { FallAlert }       from "@/components/FallAlert";
-//import { MqttHandlers } from "@/lib/flespiMqtt";
+import { StatusBar }      from "@/components/StatusBar";
+import { DeviceCard }     from "@/components/DeviceCard";
+import { TelemetryStrip } from "@/components/TelemetryStrip";
+import { FallAlert }      from "@/components/FallAlert";
 
-
-// Leaflet must be client-only
 const TrackerMap = dynamic(() => import("@/components/TrackerMap"), {
   ssr: false,
-  loading: () => (
-    <div
-      style={{
-        width: "100%", height: "100%",
-        background: "linear-gradient(135deg,#161b22 25%,#1c2128 50%,#161b22 75%)",
-        backgroundSize: "400% 400%",
-        animation: "shimmer 1.5s ease infinite",
-      }}
-      aria-label="Loading map…"
-    />
-  ),
+  loading: () => <div className="map-skeleton" />,
 });
 
-const TOKEN      = process.env.NEXT_PUBLIC_FLESPI_TOKEN ?? "";
+// REST calls use server-side FLESPI_TOKEN (via /api/flespi proxy)
+// MQTT still needs a client-side token for the WebSocket connection
+const MQTT_TOKEN = process.env.NEXT_PUBLIC_FLESPI_TOKEN ?? "";
 const DEVICE_IDS = (process.env.NEXT_PUBLIC_DEVICE_IDS ?? "")
   .split(",").map(Number).filter(Boolean);
 
 export default function Home() {
-  const { devices, connected, loading, error } = useFlespiDevice(TOKEN, DEVICE_IDS);
-  const [selectedId, setSelectedId]            = useState<number | null>(DEVICE_IDS[0] ?? null);
-  const [dismissedFalls, setDismissedFalls]    = useState<Set<number>>(new Set());
+  const { devices, connected, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS);
+  const [selectedId, setSelectedId]         = useState<number | null>(DEVICE_IDS[0] ?? null);
+  const [dismissed, setDismissed]           = useState<Set<number>>(new Set());
 
-  const selectedDevice = selectedId != null ? (devices[selectedId] ?? null) : null;
+  const allDevices    = Object.values(devices);
+  const selectedDev   = selectedId != null ? devices[selectedId] ?? null : null;
+  const activeAlerts  = allDevices.filter(d => d.fallDetected && d.info && !dismissed.has(d.info.id));
 
-  const dismissFall = useCallback((id: number) => {
-    setDismissedFalls((prev) => new Set([...prev, id]));
-  }, []);
-
-  const allDevices = Object.values(devices);
-  const activeAlerts = allDevices.filter(
-    (d) => d.fallDetected && d.info && !dismissedFalls.has(d.info.id)
-  );
+  const dismiss = useCallback((id: number) =>
+    setDismissed(p => new Set([...p, id])), []);
 
   return (
     <>
       <div className="dashboard">
-        {/* row 1 — status bar */}
         <StatusBar
           mqttConnected={connected}
           loading={loading}
@@ -65,75 +41,57 @@ export default function Home() {
           deviceCount={allDevices.length}
         />
 
-        {/* row 2 — sidebar + map */}
-        <div className="dashboard-body">
+        <div className="body">
           <aside className="sidebar">
             <p className="sidebar-label">DEVICES</p>
+            {loading && allDevices.length === 0 && <p className="hint">Fetching…</p>}
 
-            {loading && allDevices.length === 0 && (
-              <p className="sidebar-hint">Fetching devices…</p>
-            )}
-
-            {allDevices.map((dev) => (
+            {allDevices.map(dev => (
               <DeviceCard
-                key={dev.info?.id ?? "unknown"}
+                key={dev.info?.id}
                 device={dev}
                 selected={dev.info?.id === selectedId}
                 onSelect={() => setSelectedId(dev.info?.id ?? null)}
               />
             ))}
 
-            {/* fall alerts stacked below device list */}
-            {activeAlerts.length > 0 && (
-              <div className="sidebar-section-label">ALERTS</div>
-            )}
-            {activeAlerts.map((d) => (
+            {activeAlerts.length > 0 && <p className="sidebar-label" style={{ marginTop: 8, color: "#7a1f1c" }}>ALERTS</p>}
+            {activeAlerts.map(d => (
               <FallAlert
                 key={d.info?.id}
                 deviceName={d.info?.name ?? `Device ${d.info?.id}`}
                 ts={d.lastFallTs}
-                onDismiss={() => d.info && dismissFall(d.info.id)}
+                onDismiss={() => d.info && dismiss(d.info.id)}
               />
             ))}
           </aside>
 
-          {/* map — fills remaining grid cell */}
           <main className="map-area">
             <TrackerMap
               devices={allDevices}
               selectedId={selectedId}
-              token={TOKEN}
+              token={MQTT_TOKEN}
               onSelect={setSelectedId}
             />
           </main>
         </div>
 
-        {/* row 3 — telemetry strip */}
-        {selectedDevice && (
+        {selectedDev && (
           <TelemetryStrip
-            telemetry={selectedDevice.telemetry}
-            latestMessage={selectedDevice.latestMessage}
+            telemetry={selectedDev.telemetry}
+            latestMessage={selectedDev.latestMessage}
           />
         )}
       </div>
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
-
         *, *::before, *::after { box-sizing: border-box; }
-
-        html, body {
-          margin: 0; padding: 0;
-          height: 100%; overflow: hidden;
-          font-family: "IBM Plex Mono", "Fira Code", monospace;
-          background: #0d1117;
-          color: #c9d1d9;
-        }
-
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
+          font-family: "IBM Plex Mono", monospace; background: #0d1117; color: #c9d1d9; }
         @keyframes shimmer {
-          0%   { background-position: 0% 50%; }
-          50%  { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+          0%,100% { background-position: 0% 50%; }
+          50%      { background-position: 100% 50%; }
         }
       `}</style>
 
@@ -144,28 +102,23 @@ export default function Home() {
           height: 100dvh;
           overflow: hidden;
         }
-
-        /* sidebar + map side by side */
-        .dashboard-body {
+        .body {
           display: grid;
           grid-template-columns: 260px 1fr;
+          min-height: 0;
           overflow: hidden;
-          min-height: 0; /* critical — lets children scroll independently */
         }
-
         .sidebar {
           background: #0d1117;
           border-right: 1px solid #21262d;
           overflow-y: auto;
-          overflow-x: hidden;
           padding: 10px 8px;
           display: flex;
           flex-direction: column;
           gap: 6px;
           scrollbar-width: thin;
-          scrollbar-color: #30363d #0d1117;
+          scrollbar-color: #30363d transparent;
         }
-
         .sidebar-label {
           margin: 0 0 2px 2px;
           font-size: 9px;
@@ -173,56 +126,19 @@ export default function Home() {
           letter-spacing: 0.1em;
           color: #484f58;
         }
-
-        .sidebar-section-label {
-          font-size: 9px;
-          font-weight: 700;
-          letter-spacing: 0.1em;
-          color: #7a1f1c;
-          margin-top: 4px;
-          padding-top: 6px;
-          border-top: 1px solid #21262d;
+        .hint { font-size: 11px; color: #484f58; margin: 0; padding: 4px 6px; }
+        .map-area { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+        .map-skeleton {
+          width: 100%; height: 100%;
+          background: linear-gradient(135deg, #161b22 25%, #1c2128 50%, #161b22 75%);
+          background-size: 400% 400%;
+          animation: shimmer 1.5s ease infinite;
         }
-
-        .sidebar-hint {
-          font-size: 11px;
-          color: #484f58;
-          padding: 4px 6px;
-          margin: 0;
-        }
-
-        /* Leaflet's parent must be position:relative */
-        .map-area {
-          position: relative;
-          overflow: hidden;
-          min-width: 0;
-          min-height: 0;
-        }
-
-        /* ── responsive ── */
         @media (max-width: 600px) {
-          .dashboard {
-            /* strip hidden on mobile to save space */
-            grid-template-rows: 40px 1fr auto;
-          }
-
-          .dashboard-body {
-            grid-template-columns: 1fr;
-            grid-template-rows: 1fr auto;
-          }
-
+          .dashboard { grid-template-rows: 40px 1fr auto; }
+          .body { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
           .map-area { order: 1; }
-
-          .sidebar {
-            order: 2;
-            border-right: none;
-            border-top: 1px solid #21262d;
-            flex-direction: row;
-            overflow-x: auto;
-            overflow-y: hidden;
-            height: 130px;
-            padding: 6px;
-          }
+          .sidebar { order: 2; flex-direction: row; height: 130px; overflow-x: auto; overflow-y: hidden; border-right: none; border-top: 1px solid #21262d; }
         }
       `}</style>
     </>
