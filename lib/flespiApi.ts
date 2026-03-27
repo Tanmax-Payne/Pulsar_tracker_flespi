@@ -1,17 +1,19 @@
 /**
- * lib/flespiApi.ts
+ * lib/flespiApi.ts — browser-only REST client via local proxy.
  *
- * REST client — calls /api/flespi/* (local proxy) instead of flespi.io
- * directly, so no CORS issues in the browser.
+ * Uses /api/flespi/* (same-origin) to avoid CORS.
+ * All calls happen inside useEffect → always client-side → relative URL safe.
  *
- * Rate budget: 100 req/min hard limit from Flespi.
- * Strategy:
- *   - Token bucket: ~1 req / 700ms (~85 rpm, safe headroom)
- *   - In-memory cache with per-endpoint TTL
- *   - Batch device IDs into a single request using comma selector
+ * Rate strategy:
+ *   - Token bucket: 85 rpm (hard limit is 100)
+ *   - In-memory cache per endpoint
+ *   - Device IDs batched with comma selector (1 call for N devices)
  */
 
-const PROXY_BASE  = "/api/flespi";          // same-origin → no CORS
+// Relative URL — safe because this module is only ever called
+// from useEffect / event handlers (never during SSR).
+const PROXY_BASE = "/api/flespi";
+
 const MAX_RPM     = 85;
 const INTERVAL_MS = Math.ceil(60_000 / MAX_RPM); // ~706 ms
 
@@ -30,7 +32,11 @@ function setCached<T>(key: string, data: T, ttlMs: number) {
 export function clearCache() { _cache.clear(); }
 
 // ── token-bucket queue ─────────────────────────────────────────────────────
-type QItem = { fn: () => Promise<unknown>; res: (v: unknown) => void; rej: (e: unknown) => void };
+type QItem = {
+  fn:  () => Promise<unknown>;
+  res: (v: unknown) => void;
+  rej: (e: unknown) => void;
+};
 const _queue: QItem[] = [];
 let _draining = false;
 
@@ -40,79 +46,70 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
     if (!_draining) _drain();
   });
 }
-
 async function _drain() {
   _draining = true;
   while (_queue.length) {
     const item = _queue.shift()!;
     try { item.res(await item.fn()); }
     catch (e) { item.rej(e); }
-    if (_queue.length) await _sleep(INTERVAL_MS);
+    if (_queue.length) await new Promise<void>(r => setTimeout(r, INTERVAL_MS));
   }
   _draining = false;
 }
-const _sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-// ── core GET ───────────────────────────────────────────────────────────────
+// ── core fetch ─────────────────────────────────────────────────────────────
 async function flespiGet<T>(path: string, ttlMs = 5_000): Promise<T> {
-  const cached = getCached<T>(path);
-  if (cached) return cached;
+  const hit = getCached<T>(path);
+  if (hit) return hit;
 
   return enqueue(async () => {
     const res = await fetch(`${PROXY_BASE}${path}`);
-    if (!res.ok) throw new Error(`Flespi ${res.status} — ${path}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Flespi ${res.status}${text ? ": " + text : ""}`);
+    }
     const json = (await res.json()) as { result: T };
     setCached(path, json.result, ttlMs);
     return json.result;
   }) as Promise<T>;
 }
 
-// ── public types ───────────────────────────────────────────────────────────
+// ── types ──────────────────────────────────────────────────────────────────
 export interface DeviceInfo {
   id: number;
   name: string;
   device_type_id: number;
   [k: string]: unknown;
 }
-
 export interface TelemetryParam { value: unknown; ts: number }
 export type Telemetry = Record<string, TelemetryParam>;
-
 export interface Message {
   timestamp: number;
-  "position.latitude"?: number;
+  "position.latitude"?:  number;
   "position.longitude"?: number;
-  "position.speed"?: number;
-  "alarm.type"?: string;
+  "position.speed"?:     number;
+  "alarm.type"?:         string;
   [k: string]: unknown;
 }
 
 // ── public API ─────────────────────────────────────────────────────────────
-
-/** One REST call for N devices — comma-separated selector */
 export function getDevices(ids: number[]): Promise<DeviceInfo[]> {
   return flespiGet<DeviceInfo[]>(`/gw/devices/${ids.join(",")}`, 30_000);
 }
-
-/** Telemetry snapshot for N devices — one call */
 export function getTelemetry(ids: number[]): Promise<{ device_id: number; telemetry: Telemetry }[]> {
   return flespiGet(`/gw/devices/${ids.join(",")}/telemetry`, 4_000);
 }
-
-/** Latest N messages for one device */
 export function getLatestMessages(deviceId: number, count = 1): Promise<Message[]> {
   return flespiGet<Message[]>(`/gw/devices/${deviceId}/messages?count=${count}&reverse=true`, 4_000);
 }
-
-/** Time-ranged message history */
 export function getMessageRange(
   deviceId: number,
   fromTs: number,
   toTs: number,
-  maxCount = 500
+  maxCount = 500,
 ): Promise<Message[]> {
   return flespiGet<Message[]>(
     `/gw/devices/${deviceId}/messages?from=${fromTs}&to=${toTs}&count=${maxCount}`,
-    60_000
+    60_000,
   );
 }

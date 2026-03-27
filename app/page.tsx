@@ -70,7 +70,6 @@ export default function Home() {
             <TrackerMap
               devices={allDevices}
               selectedId={selectedId}
-              token={MQTT_TOKEN}
               onSelect={setSelectedId}
             />
           </main>
