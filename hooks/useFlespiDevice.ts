@@ -15,6 +15,9 @@
 
 import { useEffect, useRef, useCallback, useReducer } from "react";
 import { getDevices, getTelemetry, getLatestMessages, DeviceInfo, Telemetry, Message } from "@/lib/flespiApi";
+
+// Re-export API types so components can import everything from one place
+export type { DeviceInfo, Telemetry, TelemetryParam, Message } from "@/lib/flespiApi";
 import { connect as mqttConnect, disconnect as mqttDisconnect, TelemetryUpdate, MessageUpdate } from "@/lib/flespiMqtt";
 
 // ── types ──────────────────────────────────────────────────────────────────
@@ -142,7 +145,7 @@ export function useFlespiDevice(mqttToken: string, deviceIds: number[]) {
 
     // MQTT for live updates — zero REST cost
     if (mqttToken) {
-      mqttConnect(mqttToken, deviceIds, {
+      void mqttConnect(mqttToken, deviceIds, {
         onConnect:    () => dispatch({ type: "MQTT_STATUS", connected: true }),
         onDisconnect: () => dispatch({ type: "MQTT_STATUS", connected: false }),
         onError:      (e) => console.warn("[MQTT]", e.message),
