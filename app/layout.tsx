@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "Pulsar Tracker",
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       */}
       <body suppressHydrationWarning style={{ margin: 0, padding: 0, background: "#0d1117", overflow: "hidden" }}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
