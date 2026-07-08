@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { DeviceState } from "@/hooks/useFlespiDevice";
 
 interface DeviceCardProps {
@@ -27,7 +28,15 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
     : "#f85149";
 
   const hasGps = lat != null && lng != null;
-  const isStale = lastTs ? Date.now() / 1000 - lastTs > 300 : false; // >5 min
+
+  // Date.now() is impure — sample it in an effect instead of during render,
+  // and re-sample periodically so the STALE badge updates over time.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(id);
+  }, []);
+  const isStale = lastTs ? now / 1000 - lastTs > 300 : false; // >5 min
 
   return (
     <button onClick={onSelect} className={`card ${selected ? "card--selected" : ""} ${fallDetected ? "card--fall" : ""}`}>

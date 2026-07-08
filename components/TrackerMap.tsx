@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import type { Map as LMap, Marker, Polyline } from "leaflet";
 import type { DeviceState } from "@/hooks/useFlespiDevice";
 import { HistoryPanel } from "./HistoryPanel";
+import "leaflet/dist/leaflet.css";
 
 interface TrackerMapProps {
   devices: DeviceState[];
@@ -34,7 +35,6 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
 
     (async () => {
       const L = (await import("leaflet")).default;
-      await import("leaflet/dist/leaflet.css");
       if (!alive || !containerRef.current) return;
 
       const map = L.map(containerRef.current, { center: [20, 78], zoom: 5, zoomControl: true, attributionControl: false });
