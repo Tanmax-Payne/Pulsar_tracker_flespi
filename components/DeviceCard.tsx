@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useNow } from "@/hooks/useNow";
+import { isFresh, relativeTime } from "@/lib/freshness";
 import type { DeviceState } from "@/hooks/useFlespiDevice";
 
 interface DeviceCardProps {
@@ -29,14 +30,8 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
 
   const hasGps = lat != null && lng != null;
 
-  // Date.now() is impure — sample it in an effect instead of during render,
-  // and re-sample periodically so the STALE badge updates over time.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 15_000);
-    return () => clearInterval(id);
-  }, []);
-  const isStale = lastTs ? now / 1000 - lastTs > 300 : false; // >5 min
+  const now = useNow(1000);
+  const isStale = !isFresh(lastTs, now); // >30s since last packet
 
   return (
     <button onClick={onSelect} className={`card ${selected ? "card--selected" : ""} ${fallDetected ? "card--fall" : ""}`}>
@@ -101,8 +96,8 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
 
       {/* last seen */}
       {lastTs && (
-        <div className="card-lastseen">
-          {new Date(lastTs * 1000).toLocaleTimeString()}
+        <div className={`card-lastseen ${isStale ? "lastseen--stale" : "lastseen--fresh"}`}>
+          {relativeTime(lastTs, now)}
         </div>
       )}
 
@@ -240,9 +235,12 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
         .card-lastseen {
           margin-top: 4px;
           font-size: 9px;
-          color: #484f58;
           text-align: right;
+          font-weight: 600;
         }
+
+        .lastseen--fresh { color: #3fb950; }
+        .lastseen--stale { color: #f85149; }
       `}</style>
     </button>
   );

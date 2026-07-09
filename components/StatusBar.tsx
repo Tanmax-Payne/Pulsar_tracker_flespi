@@ -1,25 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useNow } from "@/hooks/useNow";
 
 interface StatusBarProps {
   mqttConnected: boolean;
   loading: boolean;
   error: string | null;
   deviceCount: number;
+  onOpenDrawer: () => void;
 }
 
-export function StatusBar({ mqttConnected, loading, error, deviceCount }: StatusBarProps) {
-  const [now, setNow] = useState("");
-
-  useEffect(() => {
-    function tick() {
-      setNow(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-    }
-    tick();
-    const id = setInterval(tick, 10_000);
-    return () => clearInterval(id);
-  }, []);
+export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDrawer }: StatusBarProps) {
+  const nowMs = useNow(10_000);
+  const clock = new Date(nowMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   return (
     <header className="status-bar">
@@ -51,15 +44,18 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount }: Status
         )}
       </div>
 
-      {/* right: error or clock */}
+      {/* right: error or clock, plus the drawer toggle */}
       <div className="status-right">
         {error ? (
           <span className="status-error" title={error}>
             ✕ {error.length > 40 ? error.slice(0, 40) + "…" : error}
           </span>
         ) : (
-          <span className="status-clock">{now}</span>
+          <span className="status-clock">{clock}</span>
         )}
+        <button className="drawer-toggle" onClick={onOpenDrawer} aria-label="Open devices & data panel">
+          ☰ DATA
+        </button>
       </div>
 
       <style jsx>{`
@@ -166,8 +162,24 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount }: Status
 
         .status-right {
           display: flex;
+          align-items: center;
           justify-content: flex-end;
+          gap: 10px;
         }
+
+        .drawer-toggle {
+          background: #161b22;
+          border: 1px solid #30363d;
+          color: #8b949e;
+          border-radius: 4px;
+          padding: 4px 9px;
+          font-family: inherit;
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+        }
+        .drawer-toggle:hover { background: #1c2128; color: #c9d1d9; border-color: #388bfd; }
 
         .status-error {
           color: #f85149;

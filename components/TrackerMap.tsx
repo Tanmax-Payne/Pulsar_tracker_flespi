@@ -9,12 +9,23 @@ import type { Map as LMap, Marker, Polyline, TileLayer } from "leaflet";
 import { Layers } from "lucide-react";
 import type { DeviceState } from "@/hooks/useFlespiDevice";
 import { HistoryPanel } from "./HistoryPanel";
+import { FallAlert } from "./FallAlert";
+import { LastPacketBadge } from "./LastPacketBadge";
 import "leaflet/dist/leaflet.css";
+
+interface AlertItem {
+  id: number;
+  deviceName: string;
+  ts: number | null;
+}
 
 interface TrackerMapProps {
   devices: DeviceState[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+  lastPacketDevice: DeviceState | null;
+  alerts: AlertItem[];
+  onDismissAlert: (id: number) => void;
   // token prop removed — HistoryPanel uses the server-side proxy directly
 }
 
@@ -57,7 +68,7 @@ const BASE_LAYERS = {
 type LayerKey = keyof typeof BASE_LAYERS;
 const LAYER_KEYS = Object.keys(BASE_LAYERS) as LayerKey[];
 
-export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMapProps) {
+export default function TrackerMap({ devices, selectedId, onSelect, lastPacketDevice, alerts, onDismissAlert }: TrackerMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef       = useRef<LMap | null>(null);
   const markersRef   = useRef(new Map<number, Marker>());
@@ -68,6 +79,10 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
   const [hasTrack,      setHasTrack     ] = useState(false);
   const [activeLayer,   setActiveLayer  ] = useState<LayerKey>("dark");
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
+  // Map creation is async (dynamic leaflet import); other effects that
+  // touch mapRef.current need to know when it's actually populated,
+  // not just re-run when their own props change.
+  const [mapReady, setMapReady] = useState(false);
 
   // ── mount ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -87,6 +102,7 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
       layersRef.current.dark = base;
 
       mapRef.current = map;
+      setMapReady(true);
     })();
 
     return () => {
@@ -155,14 +171,14 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
         }
       });
     })();
-  }, [devices, selectedId, onSelect]);
+  }, [devices, selectedId, onSelect, mapReady]);
 
   // ── pan to selected ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current || !selectedId) return;
     const m = markersRef.current.get(selectedId);
     if (m) mapRef.current.panTo(m.getLatLng(), { animate: true, duration: 0.5 });
-  }, [selectedId]);
+  }, [selectedId, mapReady, devices]);
 
   // ── history track ───────────────────────────────────────────────────────
   const handleTrack = useCallback(async (pts: [number, number][]) => {
@@ -220,8 +236,25 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
         )}
       </div>
 
+      {/* last packet received — the headline stat, top-center */}
+      <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 1000 }}>
+        <LastPacketBadge device={lastPacketDevice} />
+      </div>
+
       {/* overlay controls */}
       <div style={{ position: "absolute", top: 10, right: 10, zIndex: 1000, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+        {alerts.length > 0 && (
+          <div style={{ width: 220, display: "flex", flexDirection: "column", gap: 6 }}>
+            {alerts.map(a => (
+              <FallAlert
+                key={a.id}
+                deviceName={a.deviceName}
+                ts={a.ts}
+                onDismiss={() => onDismissAlert(a.id)}
+              />
+            ))}
+          </div>
+        )}
         {selectedDevice && (
           <button
             onClick={() => setShowHistory(s => !s)}

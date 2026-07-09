@@ -3,10 +3,10 @@
 import { useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { useFlespiDevice } from "@/hooks/useFlespiDevice";
-import { StatusBar }      from "@/components/StatusBar";
-import { DeviceCard }     from "@/components/DeviceCard";
-import { TelemetryStrip } from "@/components/TelemetryStrip";
-import { FallAlert }      from "@/components/FallAlert";
+import { StatusBar }        from "@/components/StatusBar";
+import { Drawer }           from "@/components/Drawer";
+import { DeviceListPanel }  from "@/components/DeviceListPanel";
+import { ParameterGrid }    from "@/components/ParameterGrid";
 
 const TrackerMap = dynamic(() => import("@/components/TrackerMap"), {
   ssr: false,
@@ -21,12 +21,16 @@ const DEVICE_IDS = (process.env.NEXT_PUBLIC_DEVICE_IDS ?? "")
 
 export default function Home() {
   const { devices, connected, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS);
-  const [selectedId, setSelectedId]         = useState<number | null>(DEVICE_IDS[0] ?? null);
-  const [dismissed, setDismissed]           = useState<Set<number>>(new Set());
+  const [selectedId, setSelectedId] = useState<number | null>(DEVICE_IDS[0] ?? null);
+  const [dismissed,  setDismissed ] = useState<Set<number>>(new Set());
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const allDevices    = Object.values(devices);
-  const selectedDev   = selectedId != null ? devices[selectedId] ?? null : null;
-  const activeAlerts  = allDevices.filter(d => d.fallDetected && d.info && !dismissed.has(d.info.id));
+  const allDevices  = Object.values(devices);
+  const selectedDev = selectedId != null ? devices[selectedId] ?? null : null;
+
+  const alerts = allDevices
+    .filter(d => d.fallDetected && d.info && !dismissed.has(d.info.id))
+    .map(d => ({ id: d.info!.id, deviceName: d.info!.name, ts: d.lastFallTs }));
 
   const dismiss = useCallback((id: number) =>
     setDismissed(p => new Set([...p, id])), []);
@@ -39,49 +43,38 @@ export default function Home() {
           loading={loading}
           error={error}
           deviceCount={allDevices.length}
+          onOpenDrawer={() => setDrawerOpen(true)}
         />
 
-        <div className="body">
-          <aside className="sidebar">
-            <p className="sidebar-label">DEVICES</p>
-            {loading && allDevices.length === 0 && <p className="hint">Fetching…</p>}
+        <main className="map-area">
+          <TrackerMap
+            devices={allDevices}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            lastPacketDevice={selectedDev}
+            alerts={alerts}
+            onDismissAlert={dismiss}
+          />
+        </main>
+      </div>
 
-            {allDevices.map(dev => (
-              <DeviceCard
-                key={dev.info?.id}
-                device={dev}
-                selected={dev.info?.id === selectedId}
-                onSelect={() => setSelectedId(dev.info?.id ?? null)}
-              />
-            ))}
-
-            {activeAlerts.length > 0 && <p className="sidebar-label" style={{ marginTop: 8, color: "#7a1f1c" }}>ALERTS</p>}
-            {activeAlerts.map(d => (
-              <FallAlert
-                key={d.info?.id}
-                deviceName={d.info?.name ?? `Device ${d.info?.id}`}
-                ts={d.lastFallTs}
-                onDismiss={() => d.info && dismiss(d.info.id)}
-              />
-            ))}
-          </aside>
-
-          <main className="map-area">
-            <TrackerMap
-              devices={allDevices}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
-          </main>
-        </div>
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+        <section>
+          <p className="section-label">DEVICES</p>
+          <DeviceListPanel
+            devices={allDevices}
+            selectedId={selectedId}
+            onSelect={(id) => { setSelectedId(id); setDrawerOpen(false); }}
+          />
+        </section>
 
         {selectedDev && (
-          <TelemetryStrip
-            telemetry={selectedDev.telemetry}
-            latestMessage={selectedDev.latestMessage}
-          />
+          <section>
+            <p className="section-label">PARAMETERS — {selectedDev.info?.name ?? `Device ${selectedId}`}</p>
+            <ParameterGrid telemetry={selectedDev.telemetry} latestMessage={selectedDev.latestMessage} />
+          </section>
         )}
-      </div>
+      </Drawer>
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
@@ -97,47 +90,23 @@ export default function Home() {
       <style jsx>{`
         .dashboard {
           display: grid;
-          grid-template-rows: 40px 1fr 56px;
+          grid-template-rows: 40px 1fr;
           height: 100dvh;
           overflow: hidden;
         }
-        .body {
-          display: grid;
-          grid-template-columns: 260px 1fr;
-          min-height: 0;
-          overflow: hidden;
-        }
-        .sidebar {
-          background: #0d1117;
-          border-right: 1px solid #21262d;
-          overflow-y: auto;
-          padding: 10px 8px;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          scrollbar-width: thin;
-          scrollbar-color: #30363d transparent;
-        }
-        .sidebar-label {
-          margin: 0 0 2px 2px;
-          font-size: 9px;
-          font-weight: 700;
-          letter-spacing: 0.1em;
-          color: #484f58;
-        }
-        .hint { font-size: 11px; color: #484f58; margin: 0; padding: 4px 6px; }
-        .map-area { position: relative; overflow: hidden; min-width: 0; min-height: 0; }
+        .map-area { position: relative; overflow: hidden; min-height: 0; }
         .map-skeleton {
           width: 100%; height: 100%;
           background: linear-gradient(135deg, #161b22 25%, #1c2128 50%, #161b22 75%);
           background-size: 400% 400%;
           animation: shimmer 1.5s ease infinite;
         }
-        @media (max-width: 600px) {
-          .dashboard { grid-template-rows: 40px 1fr auto; }
-          .body { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
-          .map-area { order: 1; }
-          .sidebar { order: 2; flex-direction: row; height: 130px; overflow-x: auto; overflow-y: hidden; border-right: none; border-top: 1px solid #21262d; }
+        .section-label {
+          margin: 0 0 8px 2px;
+          font-size: 9px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          color: #484f58;
         }
       `}</style>
     </>
