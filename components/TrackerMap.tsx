@@ -5,7 +5,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { Map as LMap, Marker, Polyline } from "leaflet";
+import type { Map as LMap, Marker, Polyline, TileLayer } from "leaflet";
+import { Layers } from "lucide-react";
 import type { DeviceState } from "@/hooks/useFlespiDevice";
 import { HistoryPanel } from "./HistoryPanel";
 import "leaflet/dist/leaflet.css";
@@ -19,14 +20,54 @@ interface TrackerMapProps {
 
 const COLORS = ["#58a6ff", "#3fb950", "#d29922", "#bc8cff", "#f0883e"];
 
+// Free, no-API-key tile providers — swappable base layers.
+const BASE_LAYERS = {
+  dark: {
+    name: "Dark",
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attribution: '© <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 20,
+  },
+  light: {
+    name: "Light",
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    attribution: '© <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 20,
+  },
+  streets: {
+    name: "Streets",
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  },
+  satellite: {
+    name: "Satellite",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Tiles © Esri",
+    maxZoom: 19,
+  },
+  terrain: {
+    name: "Terrain",
+    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+    maxZoom: 17,
+  },
+} as const;
+
+type LayerKey = keyof typeof BASE_LAYERS;
+const LAYER_KEYS = Object.keys(BASE_LAYERS) as LayerKey[];
+
 export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef       = useRef<LMap | null>(null);
   const markersRef   = useRef(new Map<number, Marker>());
   const trackRef     = useRef<Polyline | null>(null);
+  const layersRef    = useRef<Partial<Record<LayerKey, TileLayer>>>({});
 
-  const [showHistory, setShowHistory] = useState(false);
-  const [hasTrack,    setHasTrack   ] = useState(false);
+  const [showHistory,   setShowHistory  ] = useState(false);
+  const [hasTrack,      setHasTrack     ] = useState(false);
+  const [activeLayer,   setActiveLayer  ] = useState<LayerKey>("dark");
+  const [layerMenuOpen, setLayerMenuOpen] = useState(false);
 
   // ── mount ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -37,10 +78,14 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
       const L = (await import("leaflet")).default;
       if (!alive || !containerRef.current) return;
 
-      const map = L.map(containerRef.current, { center: [20, 78], zoom: 5, zoomControl: true, attributionControl: false });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", { maxZoom: 19 }).addTo(map);
-      L.control.attribution({ position: "bottomright", prefix: "" })
-        .addAttribution('© <a href="https://carto.com/">CARTO</a>').addTo(map);
+      const map = L.map(containerRef.current, { center: [20, 78], zoom: 5, zoomControl: false, attributionControl: false });
+      L.control.zoom({ position: "bottomleft" }).addTo(map);
+      L.control.attribution({ position: "bottomright", prefix: "" }).addTo(map);
+
+      const def = BASE_LAYERS.dark;
+      const base = L.tileLayer(def.url, { maxZoom: def.maxZoom, attribution: def.attribution }).addTo(map);
+      layersRef.current.dark = base;
+
       mapRef.current = map;
     })();
 
@@ -49,8 +94,29 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
       mapRef.current?.remove();
       mapRef.current = null;
       markersRef.current.clear();
+      layersRef.current = {};
     };
   }, []);
+
+  // ── base layer switching ────────────────────────────────────────────────
+  const switchLayer = useCallback(async (key: LayerKey) => {
+    setLayerMenuOpen(false);
+    if (!mapRef.current || key === activeLayer) return;
+    const L = (await import("leaflet")).default;
+    const map = mapRef.current;
+
+    const current = layersRef.current[activeLayer];
+    if (current) map.removeLayer(current);
+
+    let next = layersRef.current[key];
+    if (!next) {
+      const def = BASE_LAYERS[key];
+      next = L.tileLayer(def.url, { maxZoom: def.maxZoom, attribution: def.attribution });
+      layersRef.current[key] = next;
+    }
+    next.addTo(map);
+    setActiveLayer(key);
+  }, [activeLayer]);
 
   // ── update markers ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -119,6 +185,40 @@ export default function TrackerMap({ devices, selectedId, onSelect }: TrackerMap
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+
+      {/* layer switcher */}
+      <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1000 }}>
+        <button
+          onClick={() => setLayerMenuOpen(o => !o)}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: layerMenuOpen ? "#132235" : "#161b22", border: `1px solid ${layerMenuOpen ? "#58a6ff" : "#30363d"}`, color: layerMenuOpen ? "#58a6ff" : "#8b949e", borderRadius: 5, padding: "5px 10px", fontFamily: "IBM Plex Mono,monospace", fontSize: 10, fontWeight: 600, cursor: "pointer", letterSpacing: ".06em" }}
+        >
+          <Layers size={12} strokeWidth={2.25} />
+          {BASE_LAYERS[activeLayer].name.toUpperCase()}
+        </button>
+
+        {layerMenuOpen && (
+          <div style={{ marginTop: 6, background: "#161b22", border: "1px solid #30363d", borderRadius: 6, overflow: "hidden", minWidth: 130, boxShadow: "0 4px 16px rgba(0,0,0,.4)" }}>
+            {LAYER_KEYS.map((key, i) => (
+              <button
+                key={key}
+                onClick={() => switchLayer(key)}
+                style={{
+                  display: "block", width: "100%", textAlign: "left",
+                  background: key === activeLayer ? "#132235" : "transparent",
+                  color: key === activeLayer ? "#58a6ff" : "#8b949e",
+                  border: "none",
+                  borderBottom: i < LAYER_KEYS.length - 1 ? "1px solid #21262d" : "none",
+                  padding: "7px 10px",
+                  fontFamily: "IBM Plex Mono,monospace", fontSize: 10, fontWeight: 600,
+                  letterSpacing: ".05em", cursor: "pointer",
+                }}
+              >
+                {BASE_LAYERS[key].name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* overlay controls */}
       <div style={{ position: "absolute", top: 10, right: 10, zIndex: 1000, display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
