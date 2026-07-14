@@ -138,9 +138,17 @@ export async function getMessageRange(
     if (page.length < MESSAGE_PAGE_SIZE) break; // short page — reached `to`
   }
 
+  // Hard invariant, not an assumption: never trust that Flespi's `from`/`to`
+  // actually bounded the result. A device that was offline and bursts a
+  // backlog on reconnect can return messages whose own timestamps fall
+  // well outside the requested window even though they arrived "now" —
+  // this is what "10 minutes selected, 8000 points spanning way more than
+  // 10 minutes" looks like. Enforce the window ourselves unconditionally.
+  const bounded = out.filter(m => m.timestamp >= fromTs && m.timestamp <= toTs);
+
   // Don't trust page order for the final track — sort chronologically so
   // the polyline draws a coherent path instead of zigzagging between
   // out-of-order points.
-  out.sort((a, b) => a.timestamp - b.timestamp);
-  return out.slice(0, maxTotal);
+  bounded.sort((a, b) => a.timestamp - b.timestamp);
+  return bounded.slice(0, maxTotal);
 }
