@@ -14,7 +14,7 @@ export const POLL_INTERVALS: PollIntervalOption[] = [
   { ms: 300_000, label: "5m" },
 ];
 
-export const DEFAULT_POLL_MS = 30_000;
+export const DEFAULT_POLL_MS = 60_000;
 export const POLL_STORAGE_KEY = "pulsar:pollIntervalMs";
 
 export function isValidPollMs(ms: number): boolean {

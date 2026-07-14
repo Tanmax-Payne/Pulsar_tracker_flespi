@@ -108,7 +108,7 @@ function reducer(state: FlespiState, action: Action): FlespiState {
 const INIT: FlespiState = { devices: {}, connected: false, loading: true, error: null };
 
 // ── hook ───────────────────────────────────────────────────────────────────
-export function useFlespiDevice(mqttToken: string, deviceIds: number[], pollIntervalMs = 30_000) {
+export function useFlespiDevice(mqttToken: string, deviceIds: number[], pollIntervalMs = 60_000) {
   const [state, dispatch] = useReducer(reducer, INIT);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idsKey = deviceIds.join(",");
