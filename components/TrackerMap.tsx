@@ -23,7 +23,6 @@ interface TrackerMapProps {
   devices: DeviceState[];
   selectedId: number | null;
   onSelect: (id: number) => void;
-  lastPacketDevice: DeviceState | null;
   alerts: AlertItem[];
   onDismissAlert: (id: number) => void;
   // token prop removed — HistoryPanel uses the server-side proxy directly
@@ -68,7 +67,7 @@ const BASE_LAYERS = {
 type LayerKey = keyof typeof BASE_LAYERS;
 const LAYER_KEYS = Object.keys(BASE_LAYERS) as LayerKey[];
 
-export default function TrackerMap({ devices, selectedId, onSelect, lastPacketDevice, alerts, onDismissAlert }: TrackerMapProps) {
+export default function TrackerMap({ devices, selectedId, onSelect, alerts, onDismissAlert }: TrackerMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef       = useRef<LMap | null>(null);
   const markersRef   = useRef(new Map<number, Marker>());
@@ -238,7 +237,7 @@ export default function TrackerMap({ devices, selectedId, onSelect, lastPacketDe
 
       {/* last packet received — the headline stat, top-center */}
       <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", zIndex: 1000 }}>
-        <LastPacketBadge device={lastPacketDevice} />
+        <LastPacketBadge devices={devices} selectedId={selectedId} onSelect={onSelect} />
       </div>
 
       {/* overlay controls */}

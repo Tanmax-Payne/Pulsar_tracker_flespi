@@ -43,8 +43,7 @@ type Action =
   | { type: "TELEMETRY_UPDATE"; update: TelemetryUpdate }
   | { type: "MESSAGE_UPDATE"; update: MessageUpdate }
   | { type: "MQTT_STATUS"; connected: boolean }
-  | { type: "LOADING_DONE" }
-  | { type: "ERROR"; message: string };
+  | { type: "SNAPSHOT_DONE"; error: string | null };
 
 function blank(): DeviceState {
   return { info: null, telemetry: {}, latestMessage: null, fallDetected: false, lastFallTs: null };
@@ -98,8 +97,10 @@ function reducer(state: FlespiState, action: Action): FlespiState {
       };
     }
     case "MQTT_STATUS": return { ...state, connected: action.connected };
-    case "LOADING_DONE": return { ...state, loading: false };
-    case "ERROR":        return { ...state, error: action.message, loading: false };
+    // A cycle that fully succeeds clears any stale error from a previous
+    // one — otherwise a transient failure's banner would stick around
+    // forever even after the next poll recovers.
+    case "SNAPSHOT_DONE": return { ...state, loading: false, error: action.error };
     default: return state;
   }
 }
@@ -107,34 +108,46 @@ function reducer(state: FlespiState, action: Action): FlespiState {
 const INIT: FlespiState = { devices: {}, connected: false, loading: true, error: null };
 
 // ── hook ───────────────────────────────────────────────────────────────────
-export function useFlespiDevice(mqttToken: string, deviceIds: number[]) {
+export function useFlespiDevice(mqttToken: string, deviceIds: number[], pollIntervalMs = 30_000) {
   const [state, dispatch] = useReducer(reducer, INIT);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idsKey = deviceIds.join(",");
 
+  // Each step recovers independently — a rate-limited/failed call for one
+  // piece (or one device's latest message) must not block the others from
+  // updating. Previously a single try/catch around the whole cycle meant
+  // any one failure aborted the entire snapshot, silently freezing the UI
+  // for as long as Flespi kept erroring.
   const fetchSnapshot = useCallback(async () => {
     if (!deviceIds.length) return;
+    let lastError: string | null = null;
+
     try {
-      // One call — all devices batched
       const infos = await getDevices(deviceIds);
       dispatch({ type: "INIT_DEVICES", infos });
+    } catch (err) {
+      lastError = (err as Error).message;
+    }
 
-      // One call — all telemetry
+    try {
       const telemetries = await getTelemetry(deviceIds);
       for (const t of telemetries) {
         dispatch({ type: "INIT_TELEMETRY", deviceId: t.device_id, telemetry: t.telemetry });
       }
+    } catch (err) {
+      lastError = (err as Error).message;
+    }
 
-      // Per-device latest message (queued, rate-limited internally)
-      for (const id of deviceIds) {
+    for (const id of deviceIds) {
+      try {
         const msgs = await getLatestMessages(id, 1);
         if (msgs[0]) dispatch({ type: "INIT_MESSAGE", deviceId: id, message: msgs[0] });
+      } catch (err) {
+        lastError = (err as Error).message;
       }
-
-      dispatch({ type: "LOADING_DONE" });
-    } catch (err) {
-      dispatch({ type: "ERROR", message: (err as Error).message });
     }
+
+    dispatch({ type: "SNAPSHOT_DONE", error: lastError });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
 
@@ -154,15 +167,15 @@ export function useFlespiDevice(mqttToken: string, deviceIds: number[]) {
       });
     }
 
-    // 30s safety-net poll
-    timerRef.current = setInterval(fetchSnapshot, 30_000);
+    // Safety-net poll — cadence is user-configurable (rate-limit headroom)
+    timerRef.current = setInterval(fetchSnapshot, pollIntervalMs);
 
     return () => {
       if (mqttToken) mqttDisconnect();
       if (timerRef.current) clearInterval(timerRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mqttToken, idsKey]);
+  }, [mqttToken, idsKey, pollIntervalMs]);
 
   return state;
 }

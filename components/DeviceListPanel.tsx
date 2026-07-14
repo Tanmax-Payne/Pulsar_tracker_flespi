@@ -78,9 +78,9 @@ export function DeviceListPanel({ devices, selectedId, onSelect }: DeviceListPan
 
       <div className="list">
         {list.length === 0 && <p className="empty">No devices match.</p>}
-        {list.map(dev => (
+        {list.map((dev, idx) => (
           <DeviceCard
-            key={dev.info?.id}
+            key={dev.info?.id ?? `pending-${idx}`}
             device={dev}
             selected={dev.info?.id === selectedId}
             onSelect={() => dev.info && onSelect(dev.info.id)}

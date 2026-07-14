@@ -2,12 +2,14 @@
 
 import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { useFlespiDevice } from "@/hooks/useFlespiDevice";
-import { useTheme }        from "@/hooks/useTheme";
-import { StatusBar }        from "@/components/StatusBar";
-import { Drawer }           from "@/components/Drawer";
-import { DeviceListPanel }  from "@/components/DeviceListPanel";
-import { ParameterGrid }    from "@/components/ParameterGrid";
+import { useFlespiDevice }   from "@/hooks/useFlespiDevice";
+import { useTheme }          from "@/hooks/useTheme";
+import { usePollInterval }   from "@/hooks/usePollInterval";
+import { StatusBar }         from "@/components/StatusBar";
+import { Drawer }            from "@/components/Drawer";
+import { DeviceListPanel }   from "@/components/DeviceListPanel";
+import { ParameterGrid }     from "@/components/ParameterGrid";
+import { PollIntervalPicker } from "@/components/PollIntervalPicker";
 
 const TrackerMap = dynamic(() => import("@/components/TrackerMap"), {
   ssr: false,
@@ -30,7 +32,8 @@ function readLastSelectedDevice(): number | null {
 }
 
 export default function Home() {
-  const { devices, connected, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS);
+  const { pollMs, setPollMs } = usePollInterval();
+  const { devices, connected, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS, pollMs);
   const { theme, setTheme } = useTheme();
   const [selectedId, setSelectedId] = useState<number | null>(readLastSelectedDevice);
   const [dismissed,  setDismissed ] = useState<Set<number>>(new Set());
@@ -71,7 +74,6 @@ export default function Home() {
             devices={allDevices}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            lastPacketDevice={selectedDev}
             alerts={alerts}
             onDismissAlert={dismiss}
           />
@@ -94,6 +96,11 @@ export default function Home() {
             <ParameterGrid telemetry={selectedDev.telemetry} latestMessage={selectedDev.latestMessage} />
           </section>
         )}
+
+        <section>
+          <p className="section-label">UPDATE FREQUENCY</p>
+          <PollIntervalPicker pollMs={pollMs} onChange={setPollMs} />
+        </section>
       </Drawer>
 
       <style jsx global>{`
