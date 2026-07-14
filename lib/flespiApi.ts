@@ -102,14 +102,36 @@ export function getTelemetry(ids: number[]): Promise<{ device_id: number; teleme
 export function getLatestMessages(deviceId: number, count = 1): Promise<Message[]> {
   return flespiGet<Message[]>(`/gw/devices/${deviceId}/messages?count=${count}&reverse=true`, 4_000);
 }
-export function getMessageRange(
+const MESSAGE_PAGE_SIZE = 1000;
+
+// Paginates through Flespi's messages endpoint so arbitrarily long ranges
+// come back complete instead of silently sparse (a single call with a
+// fixed `count` only ever returns the first page). `maxTotal` is a safety
+// valve against pathological ranges (millions of points would hang the
+// tab rendering the track), not a product-level restriction.
+export async function getMessageRange(
   deviceId: number,
   fromTs: number,
   toTs: number,
-  maxCount = 500,
+  maxTotal = 20_000,
 ): Promise<Message[]> {
-  return flespiGet<Message[]>(
-    `/gw/devices/${deviceId}/messages?from=${fromTs}&to=${toTs}&count=${maxCount}`,
-    60_000,
-  );
+  const out: Message[] = [];
+  let cursor = fromTs;
+
+  while (cursor < toTs && out.length < maxTotal) {
+    const page = await flespiGet<Message[]>(
+      `/gw/devices/${deviceId}/messages?from=${cursor}&to=${toTs}&count=${MESSAGE_PAGE_SIZE}`,
+      60_000,
+    );
+    if (!page.length) break;
+    out.push(...page);
+
+    const lastTs = page[page.length - 1].timestamp;
+    if (lastTs <= cursor) break; // ts didn't advance — avoid an infinite loop
+    cursor = lastTs + 1;
+
+    if (page.length < MESSAGE_PAGE_SIZE) break; // short page — reached `to`
+  }
+
+  return out.slice(0, maxTotal);
 }

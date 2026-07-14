@@ -11,6 +11,11 @@ interface HistoryPanelProps {
 
 type Status = "idle" | "loading" | "done" | "error";
 
+// Safety valve, not a product restriction — see getMessageRange's own
+// comment. Any range is allowed; this just caps how many points we'll
+// ever try to render in one track.
+const MAX_POINTS = 20_000;
+
 function toLocalIso(d: Date) {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -19,23 +24,24 @@ function toLocalIso(d: Date) {
 export function HistoryPanel({ deviceId, onTrack, onClose }: HistoryPanelProps) {
   const [from, setFrom] = useState(() => { const d = new Date(); d.setHours(d.getHours()-1); return toLocalIso(d); });
   const [to,   setTo  ] = useState(() => toLocalIso(new Date()));
-  const [status, setStatus] = useState<Status>("idle");
-  const [count,  setCount ] = useState(0);
-  const [err,    setErr   ] = useState("");
+  const [status,    setStatus   ] = useState<Status>("idle");
+  const [count,     setCount    ] = useState(0);
+  const [truncated, setTruncated] = useState(false);
+  const [err,       setErr      ] = useState("");
 
   const load = useCallback(async () => {
     const fromTs = Math.floor(new Date(from).getTime() / 1000);
     const toTs   = Math.floor(new Date(to  ).getTime() / 1000);
-    if (fromTs >= toTs)          { setErr("'From' must be before 'To'"); return; }
-    if (toTs - fromTs > 86400*7) { setErr("Max range: 7 days"); return; }
+    if (fromTs >= toTs) { setErr("'From' must be before 'To'"); return; }
 
     setStatus("loading"); setErr("");
     try {
-      const msgs: Message[] = await getMessageRange(deviceId, fromTs, toTs, 500);
+      const msgs: Message[] = await getMessageRange(deviceId, fromTs, toTs, MAX_POINTS);
       const pts = msgs
         .filter(m => m["position.latitude"] != null && m["position.longitude"] != null)
         .map(m => [m["position.latitude"]!, m["position.longitude"]!] as [number, number]);
       setCount(pts.length);
+      setTruncated(msgs.length >= MAX_POINTS);
       onTrack(pts);
       setStatus("done");
     } catch (e) {
@@ -67,7 +73,12 @@ export function HistoryPanel({ deviceId, onTrack, onClose }: HistoryPanelProps) 
         {status === "loading" ? "⟳ Fetching…" : "Load Track"}
       </button>
 
-      {status === "done"  && <p className="ok">✓ {count} point{count !== 1 ? "s" : ""} plotted</p>}
+      {status === "done" && (
+        <p className="ok">
+          ✓ {count} point{count !== 1 ? "s" : ""} plotted
+          {truncated && " (capped — narrow the range for the rest)"}
+        </p>
+      )}
       {(err || status === "error") && <p className="bad">{err}</p>}
 
       <style jsx>{`
