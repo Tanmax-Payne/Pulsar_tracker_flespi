@@ -99,9 +99,6 @@ export function getDevices(ids: number[]): Promise<DeviceInfo[]> {
 export function getTelemetry(ids: number[]): Promise<{ device_id: number; telemetry: Telemetry }[]> {
   return flespiGet(`/gw/devices/${ids.join(",")}/telemetry`, 4_000);
 }
-export function getLatestMessages(deviceId: number, count = 1): Promise<Message[]> {
-  return flespiGet<Message[]>(`/gw/devices/${deviceId}/messages?count=${count}&reverse=true`, 4_000);
-}
 const MESSAGE_PAGE_SIZE = 1000;
 
 // Paginates through Flespi's messages endpoint so arbitrarily long ranges

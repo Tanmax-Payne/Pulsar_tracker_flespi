@@ -3,8 +3,12 @@
 import { useMemo, useState } from "react";
 import { DeviceCard } from "./DeviceCard";
 import { useNow } from "@/hooks/useNow";
-import { isFresh } from "@/lib/freshness";
+import { isFresh, latestTelemetryTs } from "@/lib/freshness";
 import type { DeviceState } from "@/hooks/useFlespiDevice";
+
+function deviceTs(d: DeviceState): number | null {
+  return d.latestMessage?.timestamp ?? latestTelemetryTs(d.telemetry);
+}
 
 interface DeviceListPanelProps {
   devices: DeviceState[];
@@ -34,12 +38,12 @@ export function DeviceListPanel({ devices, selectedId, onSelect }: DeviceListPan
 
     if (filter === "alerts") out = out.filter(d => d.fallDetected);
     else if (filter === "live" || filter === "stale") {
-      out = out.filter(d => isFresh(d.latestMessage?.timestamp, now) === (filter === "live"));
+      out = out.filter(d => isFresh(deviceTs(d), now) === (filter === "live"));
     }
 
     out = [...out].sort((a, b) => {
       if (sort === "name")   return (a.info?.name ?? "").localeCompare(b.info?.name ?? "");
-      if (sort === "recent") return (b.latestMessage?.timestamp ?? 0) - (a.latestMessage?.timestamp ?? 0);
+      if (sort === "recent") return (deviceTs(b) ?? 0) - (deviceTs(a) ?? 0);
       return Number(b.fallDetected) - Number(a.fallDetected);
     });
 

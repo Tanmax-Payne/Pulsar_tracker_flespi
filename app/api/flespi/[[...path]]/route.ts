@@ -10,13 +10,22 @@ const TOKEN = process.env.FLESPI_TOKEN ?? "";
 const ALLOWED_PATH_RE = /^\/gw\/devices\/[\d,]+(\/(telemetry|messages))?$/;
 
 // Server-side cache + request budget, shared across every client hitting
-// this warm instance. Flespi's free tier caps at ~100 requests/minute
-// account-wide — the previous rate limiter lived only in the browser
-// (a per-tab token bucket), which can't coordinate across tabs or users,
-// so N viewers meant N independent polling loops against the same cap.
-// This collapses duplicate requests (multiple viewers of the same
-// device) and stops forwarding once the shared budget is spent for the
-// window, serving stale cache instead of piling on more 429s.
+// this warm instance. Per Flespi's published Restrictions (flespi.com/en/
+// docs/restrictions): free tier allows 200 REST requests/minute, and
+// exceeding it doesn't just reject the excess request — the ENTIRE TOKEN
+// is suspended for a full 60 seconds, rejecting everything until it
+// clears. The previous rate limiter lived only in the browser (a per-tab
+// token bucket), which can't coordinate across tabs or users, so N
+// viewers meant N independent polling loops against the same account-wide
+// cap. This collapses duplicate requests (multiple viewers of the same
+// device) and stops forwarding once the shared budget is spent.
+//
+// Caveat: Vercel may run multiple concurrent serverless instances under
+// load, each with its own copy of this module-scope state, so this isn't
+// a truly global ceiling — it's a per-instance one. Combined with the
+// suspendedUntil cooldown below (which reacts to Flespi's *own* signal
+// rather than just our local guess), this is the practical fix available
+// without standing up an external shared store for an app this size.
 interface CacheEntry { body: unknown; status: number; expiresAt: number }
 const cache = new Map<string, CacheEntry>();
 
@@ -28,9 +37,14 @@ function ttlForPath(pathname: string, search: string): number {
 }
 
 const WINDOW_MS = 60_000;
-const BUDGET_PER_WINDOW = 80; // headroom under Flespi's ~100/min free-tier cap
+const BUDGET_PER_WINDOW = 80; // headroom under Flespi's real 200/min free-tier cap
 let windowStart = Date.now();
 let windowCount = 0;
+
+// Once Flespi itself 429s us, believe it immediately — continuing to send
+// requests during their documented 1-minute suspension window is
+// guaranteed-wasted quota and just compounds the outage.
+let suspendedUntil = 0;
 
 function withinBudget(): boolean {
   const now = Date.now();
@@ -65,6 +79,19 @@ export async function GET(
     return NextResponse.json(cached.body, { status: cached.status });
   }
 
+  if (now < suspendedUntil) {
+    if (cached) {
+      return NextResponse.json(cached.body, {
+        status: cached.status,
+        headers: { "x-flespi-proxy-cache": "stale-suspended" },
+      });
+    }
+    return NextResponse.json(
+      { error: `Flespi token suspended until ${new Date(suspendedUntil).toISOString()} (hit the account's rate limit) — serving no data until then` },
+      { status: 429 },
+    );
+  }
+
   if (!withinBudget()) {
     if (cached) {
       return NextResponse.json(cached.body, {
@@ -86,6 +113,13 @@ export async function GET(
       headers: { Authorization: `FlespiToken ${TOKEN}` },
       cache: "no-store",
     });
+
+    if (upstream.status === 429) {
+      // Flespi suspends the whole token for 1 minute on overshoot — honor
+      // that exactly instead of continuing to burn (and extend) it.
+      suspendedUntil = now + 60_000;
+    }
+
     const body = await upstream.json();
     cache.set(cacheKey, { body, status: upstream.status, expiresAt: now + ttlForPath(pathname, search) });
     return NextResponse.json(body, { status: upstream.status });

@@ -2,9 +2,14 @@
  * hooks/useFlespiDevice.ts
  *
  * Data strategy:
- *   1. REST snapshot on mount  (2 calls: devices + telemetry batch)
+ *   1. REST snapshot on mount  (2 calls: devices + telemetry batch — NOT
+ *      a per-device "latest message" loop; telemetry's per-parameter
+ *      timestamps already cover "what is this device doing right now",
+ *      and pulling that instead of /messages is Flespi's own documented
+ *      guidance, not just an optimization we invented)
  *   2. MQTT WebSocket          (zero REST calls for live updates)
- *   3. REST poll every 30s     (safety net — catches any MQTT gaps)
+ *   3. REST poll (interval is user-configurable) — safety net, catches
+ *      any MQTT gaps
  *
  * Token usage:
  *   REST  → server-side proxy (/api/flespi) — token never in browser
@@ -14,7 +19,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useReducer } from "react";
-import { getDevices, getTelemetry, getLatestMessages, DeviceInfo, Telemetry, Message } from "@/lib/flespiApi";
+import { getDevices, getTelemetry, DeviceInfo, Telemetry, Message } from "@/lib/flespiApi";
 
 // Re-export API types so components can import everything from one place
 export type { DeviceInfo, Telemetry, TelemetryParam, Message } from "@/lib/flespiApi";
@@ -39,7 +44,6 @@ export interface FlespiState {
 type Action =
   | { type: "INIT_DEVICES"; infos: DeviceInfo[] }
   | { type: "INIT_TELEMETRY"; deviceId: number; telemetry: Telemetry }
-  | { type: "INIT_MESSAGE"; deviceId: number; message: Message }
   | { type: "TELEMETRY_UPDATE"; update: TelemetryUpdate }
   | { type: "MESSAGE_UPDATE"; update: MessageUpdate }
   | { type: "MQTT_STATUS"; connected: boolean }
@@ -63,10 +67,6 @@ function reducer(state: FlespiState, action: Action): FlespiState {
     case "INIT_TELEMETRY": {
       const dev = state.devices[action.deviceId] ?? blank();
       return { ...state, devices: { ...state.devices, [action.deviceId]: { ...dev, telemetry: action.telemetry } } };
-    }
-    case "INIT_MESSAGE": {
-      const dev = state.devices[action.deviceId] ?? blank();
-      return { ...state, devices: { ...state.devices, [action.deviceId]: { ...dev, latestMessage: action.message } } };
     }
     case "TELEMETRY_UPDATE": {
       const { deviceId, param, value, ts } = action.update;
@@ -136,15 +136,6 @@ export function useFlespiDevice(mqttToken: string, deviceIds: number[], pollInte
       }
     } catch (err) {
       lastError = (err as Error).message;
-    }
-
-    for (const id of deviceIds) {
-      try {
-        const msgs = await getLatestMessages(id, 1);
-        if (msgs[0]) dispatch({ type: "INIT_MESSAGE", deviceId: id, message: msgs[0] });
-      } catch (err) {
-        lastError = (err as Error).message;
-      }
     }
 
     dispatch({ type: "SNAPSHOT_DONE", error: lastError });

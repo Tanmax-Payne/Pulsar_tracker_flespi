@@ -1,6 +1,20 @@
+import type { Telemetry } from "@/lib/flespiApi";
+
 // Single source of truth for "is this data recent enough to trust?"
 // across markers, badges, and the parameter grid.
 export const FRESH_THRESHOLD_SEC = 30;
+
+// Most recent timestamp across all telemetry parameters — used as the
+// freshness signal when there's no live MQTT message to fall back on
+// (REST telemetry is fetched batched for all devices in one call, unlike
+// per-device message fetches, so this is the cheap/correct source).
+export function latestTelemetryTs(telemetry: Telemetry): number | null {
+  let max: number | null = null;
+  for (const p of Object.values(telemetry)) {
+    if (max == null || p.ts > max) max = p.ts;
+  }
+  return max;
+}
 
 export function isFresh(ts: number | null | undefined, nowMs: number, thresholdSec = FRESH_THRESHOLD_SEC): boolean {
   if (ts == null) return false;
