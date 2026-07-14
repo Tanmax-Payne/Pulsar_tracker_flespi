@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useFlespiDevice } from "@/hooks/useFlespiDevice";
 import { StatusBar }        from "@/components/StatusBar";
@@ -19,11 +19,27 @@ const MQTT_TOKEN = process.env.NEXT_PUBLIC_FLESPI_TOKEN ?? "";
 const DEVICE_IDS = (process.env.NEXT_PUBLIC_DEVICE_IDS ?? "")
   .split(",").map(Number).filter(Boolean);
 
+const LAST_DEVICE_KEY = "pulsar:lastSelectedDeviceId";
+
+function readLastSelectedDevice(): number | null {
+  if (typeof window === "undefined") return DEVICE_IDS[0] ?? null;
+  const saved = Number(window.localStorage.getItem(LAST_DEVICE_KEY));
+  if (saved && DEVICE_IDS.includes(saved)) return saved;
+  return DEVICE_IDS[0] ?? null;
+}
+
 export default function Home() {
   const { devices, connected, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS);
-  const [selectedId, setSelectedId] = useState<number | null>(DEVICE_IDS[0] ?? null);
+  const [selectedId, setSelectedId] = useState<number | null>(readLastSelectedDevice);
   const [dismissed,  setDismissed ] = useState<Set<number>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Nothing observable renders differently based on selectedId until device
+  // data has loaded (well after hydration), so restoring it in the lazy
+  // useState initializer above is hydration-safe despite differing from SSR.
+  useEffect(() => {
+    if (selectedId != null) localStorage.setItem(LAST_DEVICE_KEY, String(selectedId));
+  }, [selectedId]);
 
   const allDevices  = Object.values(devices);
   const selectedDev = selectedId != null ? devices[selectedId] ?? null : null;

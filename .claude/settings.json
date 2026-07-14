@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git log *)",
+      "Bash(npm run *)",
+      "Bash(cp /private/tmp/claude-501/-Users-fb-Documents-PERSONAL-PULSAR-FLESPI-TRACKER-Pulsar-tracker-flespi/79a2b5c4-8f84-40b7-9258-6986da9c406a/scratchpad/verify-persist.mjs ./__verify-persist.mjs)",
+      "Bash(node __verify-persist.mjs)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(rm -f __verify-persist.mjs .env.local)"
+    ]
+  }
+}
