@@ -2,9 +2,10 @@
 
 import { useNow } from "@/hooks/useNow";
 import { ThemeSwitcher } from "./ThemeSwitcher";
+import type { MqttStatus } from "@/hooks/useFlespiDevice";
 
 interface StatusBarProps {
-  mqttConnected: boolean;
+  mqttStatus: MqttStatus;
   loading: boolean;
   error: string | null;
   deviceCount: number;
@@ -13,9 +14,17 @@ interface StatusBarProps {
   onThemeChange: (id: string) => void;
 }
 
-export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDrawer, theme, onThemeChange }: StatusBarProps) {
+const MQTT_LABEL: Record<MqttStatus, string> = {
+  "no-token":    "MQTT NOT CONFIGURED",
+  connecting:    "CONNECTING",
+  connected:     "LIVE",
+  disconnected:  "RECONNECTING",
+};
+
+export function StatusBar({ mqttStatus, loading, error, deviceCount, onOpenDrawer, theme, onThemeChange }: StatusBarProps) {
   const nowMs = useNow(10_000);
   const clock = new Date(nowMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const mqttPillClass = mqttStatus === "connected" ? "pill--live" : mqttStatus === "no-token" ? "pill--danger" : "pill--warn";
 
   return (
     <header className="status-bar">
@@ -29,9 +38,9 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
       {/* centre pills */}
       <div className="status-pills">
         {/* MQTT indicator */}
-        <div className={`pill ${mqttConnected ? "pill--live" : "pill--warn"}`}>
+        <div className={`pill ${mqttPillClass}`} title={mqttStatus === "no-token" ? "NEXT_PUBLIC_FLESPI_TOKEN is not set — MQTT will never connect" : undefined}>
           <span className="pill-dot" />
-          {mqttConnected ? "LIVE" : "RECONNECTING"}
+          {MQTT_LABEL[mqttStatus]}
         </div>
 
         {/* device count */}
@@ -126,6 +135,12 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
           border: 1px solid var(--warning-border);
         }
 
+        .pill--danger {
+          background: var(--danger-bg-soft);
+          color: var(--danger);
+          border: 1px solid var(--danger-border);
+        }
+
         .pill--neutral {
           background: var(--bg-elevated);
           color: var(--text-muted);
@@ -141,7 +156,8 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
           animation: pulse 2s ease-in-out infinite;
         }
 
-        .pill--warn .pill-dot {
+        .pill--warn .pill-dot,
+        .pill--danger .pill-dot {
           animation: none;
         }
 

@@ -34,9 +34,17 @@ export interface DeviceState {
   lastFallTs: number | null;
 }
 
+// "no-token" is a distinct state from "disconnected" on purpose — a
+// missing NEXT_PUBLIC_FLESPI_TOKEN means MQTT is never even attempted
+// (see the `if (mqttToken)` guard below), which previously looked
+// identical to a live, flapping connection in the UI ("RECONNECTING"
+// either way) and made a simple misconfiguration indistinguishable from
+// a real live-updates outage.
+export type MqttStatus = "no-token" | "connecting" | "connected" | "disconnected";
+
 export interface FlespiState {
   devices: Record<number, DeviceState>;
-  connected: boolean;
+  mqttStatus: MqttStatus;
   loading: boolean;
   error: string | null;
 }
@@ -46,7 +54,7 @@ type Action =
   | { type: "INIT_TELEMETRY"; deviceId: number; telemetry: Telemetry }
   | { type: "TELEMETRY_UPDATE"; update: TelemetryUpdate }
   | { type: "MESSAGE_UPDATE"; update: MessageUpdate }
-  | { type: "MQTT_STATUS"; connected: boolean }
+  | { type: "MQTT_STATUS"; status: MqttStatus }
   | { type: "SNAPSHOT_DONE"; error: string | null };
 
 function blank(): DeviceState {
@@ -96,7 +104,7 @@ function reducer(state: FlespiState, action: Action): FlespiState {
         },
       };
     }
-    case "MQTT_STATUS": return { ...state, connected: action.connected };
+    case "MQTT_STATUS": return { ...state, mqttStatus: action.status };
     // A cycle that fully succeeds clears any stale error from a previous
     // one — otherwise a transient failure's banner would stick around
     // forever even after the next poll recovers.
@@ -105,11 +113,13 @@ function reducer(state: FlespiState, action: Action): FlespiState {
   }
 }
 
-const INIT: FlespiState = { devices: {}, connected: false, loading: true, error: null };
+function initState(mqttToken: string): FlespiState {
+  return { devices: {}, mqttStatus: mqttToken ? "connecting" : "no-token", loading: true, error: null };
+}
 
 // ── hook ───────────────────────────────────────────────────────────────────
 export function useFlespiDevice(mqttToken: string, deviceIds: number[], pollIntervalMs = 60_000) {
-  const [state, dispatch] = useReducer(reducer, INIT);
+  const [state, dispatch] = useReducer(reducer, mqttToken, initState);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const idsKey = deviceIds.join(",");
 
@@ -150,12 +160,14 @@ export function useFlespiDevice(mqttToken: string, deviceIds: number[], pollInte
     // MQTT for live updates — zero REST cost
     if (mqttToken) {
       void mqttConnect(mqttToken, deviceIds, {
-        onConnect:    () => dispatch({ type: "MQTT_STATUS", connected: true }),
-        onDisconnect: () => dispatch({ type: "MQTT_STATUS", connected: false }),
-        onError:      (e) => console.warn("[MQTT]", e.message),
+        onConnect:    () => dispatch({ type: "MQTT_STATUS", status: "connected" }),
+        onDisconnect: () => dispatch({ type: "MQTT_STATUS", status: "disconnected" }),
+        onError:      (e) => { console.warn("[MQTT]", e.message); dispatch({ type: "MQTT_STATUS", status: "disconnected" }); },
         onTelemetry:  (u) => dispatch({ type: "TELEMETRY_UPDATE", update: u }),
         onMessage:    (u) => dispatch({ type: "MESSAGE_UPDATE", update: u }),
       });
+    } else {
+      console.warn("[MQTT] NEXT_PUBLIC_FLESPI_TOKEN is not set — MQTT will never connect; the app is fully REST-poll-dependent.");
     }
 
     // Safety-net poll — cadence is user-configurable (rate-limit headroom)

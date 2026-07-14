@@ -33,7 +33,7 @@ function readLastSelectedDevice(): number | null {
 
 export default function Home() {
   const { pollMs, setPollMs } = usePollInterval();
-  const { devices, connected, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS, pollMs);
+  const { devices, mqttStatus, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS, pollMs);
   const { theme, setTheme } = useTheme();
   const [selectedId, setSelectedId] = useState<number | null>(readLastSelectedDevice);
   const [dismissed,  setDismissed ] = useState<Set<number>>(new Set());
@@ -60,7 +60,7 @@ export default function Home() {
     <>
       <div className="dashboard">
         <StatusBar
-          mqttConnected={connected}
+          mqttStatus={mqttStatus}
           loading={loading}
           error={error}
           deviceCount={allDevices.length}
