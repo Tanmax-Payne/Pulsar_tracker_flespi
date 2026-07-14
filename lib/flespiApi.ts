@@ -116,6 +116,7 @@ export async function getMessageRange(
   maxTotal = 20_000,
 ): Promise<Message[]> {
   const out: Message[] = [];
+  const seenTs = new Set<number>(); // Flespi doesn't guarantee page order — guards against re-fetched overlap inflating/duplicating the result
   let cursor = fromTs;
 
   while (cursor < toTs && out.length < maxTotal) {
@@ -124,14 +125,25 @@ export async function getMessageRange(
       60_000,
     );
     if (!page.length) break;
-    out.push(...page);
 
-    const lastTs = page[page.length - 1].timestamp;
-    if (lastTs <= cursor) break; // ts didn't advance — avoid an infinite loop
-    cursor = lastTs + 1;
+    let maxTs = cursor;
+    for (const m of page) {
+      if (m.timestamp > maxTs) maxTs = m.timestamp;
+      if (!seenTs.has(m.timestamp)) {
+        seenTs.add(m.timestamp);
+        out.push(m);
+      }
+    }
+
+    if (maxTs <= cursor) break; // no progress — avoid an infinite loop
+    cursor = maxTs + 1;
 
     if (page.length < MESSAGE_PAGE_SIZE) break; // short page — reached `to`
   }
 
+  // Don't trust page order for the final track — sort chronologically so
+  // the polyline draws a coherent path instead of zigzagging between
+  // out-of-order points.
+  out.sort((a, b) => a.timestamp - b.timestamp);
   return out.slice(0, maxTotal);
 }
