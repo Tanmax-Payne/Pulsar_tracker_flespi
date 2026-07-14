@@ -1,0 +1,311 @@
+/*
+ * Theme tokens. Every color used in the app chrome (status bar, drawer,
+ * cards, badges, panels) is a var() against this palette so switching
+ * [data-theme] on <html> re-skins the whole UI. Device marker colors and
+ * map tile layers are intentionally NOT themed here — markers need to
+ * stay distinguishable against whichever map tiles are active, which is
+ * a separate concern (see TrackerMap's own layer switcher).
+ *
+ * Palette values (bg/text/accent/card/border) are sourced from
+ * richkershaw/HA-LightDash's theme CSS files — success/warning/danger
+ * roles don't exist in that source (a lighting dashboard has no such
+ * concept) and are original, tuned to sit naturally in each palette.
+ */
+
+:root,
+[data-theme="current"] {
+  --color-scheme: dark;
+  --bg: #0d1117;
+  --bg-elevated: #161b22;
+  --bg-hover: #1c2128;
+  --bg-selected: #132235;
+
+  --border: #21262d;
+  --border-strong: #30363d;
+  --accent-border: #388bfd;
+
+  --text: #c9d1d9;
+  --text-bright: #e6edf3;
+  --text-muted: #8b949e;
+  --text-dim: #484f58;
+
+  --accent: #58a6ff;
+  --accent-bg: #132235;
+
+  --success: #3fb950;
+  --success-bg: #0d2318;
+  --success-border: #1a4d2e;
+
+  --warning: #d29922;
+  --warning-bg: #2d2010;
+  --warning-border: #4d3a10;
+
+  --danger: #f85149;
+  --danger-bg: #1a0a0a;
+  --danger-bg-soft: #3d0f0e;
+  --danger-border: #7a1f1c;
+}
+
+[data-theme="daylight"] {
+  --color-scheme: light;
+  --bg: #f1efe9;
+  --bg-elevated: #ffffff;
+  --bg-hover: #f2f0ea;
+  --bg-selected: #e7effd;
+
+  --border: #e9e6df;
+  --border-strong: #d7d3c8;
+  --accent-border: #2f6df0;
+
+  --text: #262a30;
+  --text-bright: #14171c;
+  --text-muted: #565d66;
+  --text-dim: #8b929b;
+
+  --accent: #2f6df0;
+  --accent-bg: #e7effd;
+
+  --success: #1a7f37;
+  --success-bg: #dafbe1;
+  --success-border: #8fd99f;
+
+  --warning: #9a6700;
+  --warning-bg: #fff1cc;
+  --warning-border: #eec766;
+
+  --danger: #cf222e;
+  --danger-bg: #ffebe9;
+  --danger-bg-soft: #ffdcd9;
+  --danger-border: #ff9492;
+}
+
+[data-theme="ink"] {
+  --color-scheme: light;
+  --bg: #f6f5f1;
+  --bg-elevated: #ffffff;
+  --bg-hover: #ececE6;
+  --bg-selected: #e4e2da;
+
+  --border: #16140f;
+  --border-strong: #16140f;
+  --accent-border: #16140f;
+
+  --text: #16140f;
+  --text-bright: #000000;
+  --text-muted: #2c2a24;
+  --text-dim: #5d5b53;
+
+  --accent: #16140f;
+  --accent-bg: #e4e2da;
+
+  --success: #0a7a2f;
+  --success-bg: #e6f6ea;
+  --success-border: #16140f;
+
+  --warning: #8a5a00;
+  --warning-bg: #fff3d6;
+  --warning-border: #16140f;
+
+  --danger: #a30000;
+  --danger-bg: #ffe6e6;
+  --danger-bg-soft: #ffd4d4;
+  --danger-border: #16140f;
+}
+
+[data-theme="hearth"] {
+  --color-scheme: dark;
+  --bg: #191310;
+  --bg-elevated: #241a14;
+  --bg-hover: #31251d;
+  --bg-selected: #3d2a10;
+
+  --border: #362720;
+  --border-strong: #4a3728;
+  --accent-border: #e0883c;
+
+  --text: #f1e7da;
+  --text-bright: #fbf2e6;
+  --text-muted: #cdbaa6;
+  --text-dim: #9a8772;
+
+  --accent: #e0883c;
+  --accent-bg: #31251d;
+
+  --success: #8fbf5a;
+  --success-bg: #202b16;
+  --success-border: #435e2a;
+
+  --warning: #e8b024;
+  --warning-bg: #302809;
+  --warning-border: #8a6d19;
+
+  --danger: #e85d3a;
+  --danger-bg: #24120b;
+  --danger-bg-soft: #3a1c10;
+  --danger-border: #8a3a20;
+}
+
+[data-theme="glass"] {
+  --color-scheme: dark;
+  --bg: #1b2140;
+  --bg-elevated: #262c4c;
+  --bg-hover: #2f3659;
+  --bg-selected: #35406e;
+
+  --border: #38416b;
+  --border-strong: #4a5480;
+  --accent-border: #7fc8ff;
+
+  --text: #f3f5fb;
+  --text-bright: #ffffff;
+  --text-muted: #d7dcee;
+  --text-dim: #aab4d4;
+
+  --accent: #7fc8ff;
+  --accent-bg: #33436f;
+
+  --success: #5ee0b0;
+  --success-bg: #163a30;
+  --success-border: #2c7a60;
+
+  --warning: #f0c14b;
+  --warning-bg: #3a3013;
+  --warning-border: #96801f;
+
+  --danger: #f06c9b;
+  --danger-bg: #2c1524;
+  --danger-bg-soft: #3d1c30;
+  --danger-border: #96395f;
+}
+
+[data-theme="terminal"] {
+  --color-scheme: dark;
+  --bg: #060a06;
+  --bg-elevated: #0c130c;
+  --bg-hover: #11200f;
+  --bg-selected: #16301a;
+
+  --border: #1d3a20;
+  --border-strong: #2c5c2f;
+  --accent-border: #36e636;
+
+  --text: #84e88a;
+  --text-bright: #b8ffb8;
+  --text-muted: #57a85c;
+  --text-dim: #3d7a43;
+
+  --accent: #36e636;
+  --accent-bg: #11200f;
+
+  --success: #36e636;
+  --success-bg: #0c130c;
+  --success-border: #2c5c2f;
+
+  --warning: #ffcc33;
+  --warning-bg: #241f08;
+  --warning-border: #8a7318;
+
+  --danger: #ff4d4d;
+  --danger-bg: #1a0808;
+  --danger-bg-soft: #2a0d0d;
+  --danger-border: #8a2020;
+}
+
+[data-theme="soft"] {
+  --color-scheme: light;
+  --bg: #e7e4de;
+  --bg-elevated: #edebe6;
+  --bg-hover: #e2dfd8;
+  --bg-selected: #dcdcf0;
+
+  --border: #d8d5ce;
+  --border-strong: #c5c2bb;
+  --accent-border: #6d72c9;
+
+  --text: #4a4742;
+  --text-bright: #3a3733;
+  --text-muted: #6f6b64;
+  --text-dim: #9a958c;
+
+  --accent: #6d72c9;
+  --accent-bg: #dcdcf0;
+
+  --success: #4a7a4a;
+  --success-bg: #dfe9df;
+  --success-border: #93b393;
+
+  --warning: #a37a2a;
+  --warning-bg: #f0e5cc;
+  --warning-border: #c9a35a;
+
+  --danger: #a33a2a;
+  --danger-bg: #f0dcd6;
+  --danger-bg-soft: #e6c9bf;
+  --danger-border: #c96a5a;
+}
+
+[data-theme="bauhaus"] {
+  --color-scheme: light;
+  --bg: #f1ece1;
+  --bg-elevated: #ffffff;
+  --bg-hover: #f5f5f5;
+  --bg-selected: #ffe8cc;
+
+  --border: #111111;
+  --border-strong: #111111;
+  --accent-border: #111111;
+
+  --text: #161616;
+  --text-bright: #111111;
+  --text-muted: #333333;
+  --text-dim: #5f5f5f;
+
+  --accent: #e2231a;
+  --accent-bg: #ffe0dd;
+
+  --success: #1a8a4a;
+  --success-bg: #d6f2e0;
+  --success-border: #111111;
+
+  --warning: #e8b400;
+  --warning-bg: #fff2cc;
+  --warning-border: #111111;
+
+  --danger: #e2231a;
+  --danger-bg: #ffe0dd;
+  --danger-bg-soft: #ffcac4;
+  --danger-border: #111111;
+}
+
+[data-theme="sage"] {
+  --color-scheme: light;
+  --bg: #e9ece1;
+  --bg-elevated: #f5f7ee;
+  --bg-hover: #eaeede;
+  --bg-selected: #dde5cf;
+
+  --border: #dde0d2;
+  --border-strong: #c7ccb8;
+  --accent-border: #6f8f5f;
+
+  --text: #3b4138;
+  --text-bright: #2c3228;
+  --text-muted: #5e6557;
+  --text-dim: #8a907f;
+
+  --accent: #6f8f5f;
+  --accent-bg: #dde5cf;
+
+  --success: #3a7a3a;
+  --success-bg: #dceadc;
+  --success-border: #7aab68;
+
+  --warning: #a3821f;
+  --warning-bg: #f0e6cc;
+  --warning-border: #c9ac5a;
+
+  --danger: #a34a3a;
+  --danger-bg: #f0ddd6;
+  --danger-bg-soft: #e6cabf;
+  --danger-border: #c9705a;
+}

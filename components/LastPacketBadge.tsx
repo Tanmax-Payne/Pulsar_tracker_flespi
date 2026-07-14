@@ -48,9 +48,9 @@ export function LastPacketBadge({ device }: LastPacketBadgeProps) {
           display: flex;
           align-items: flex-start;
           gap: 8px;
-          background: #0d1117ee;
+          background: color-mix(in srgb, var(--bg) 93%, transparent);
           backdrop-filter: blur(4px);
-          border: 1px solid #30363d;
+          border: 1px solid var(--border-strong);
           border-radius: 10px;
           padding: 7px 12px;
           font-family: "IBM Plex Mono", monospace;
@@ -66,8 +66,8 @@ export function LastPacketBadge({ device }: LastPacketBadgeProps) {
           margin-top: 4px;
         }
 
-        .badge--fresh .dot { background: #3fb950; box-shadow: 0 0 6px #3fb950; animation: pulse 2s ease-in-out infinite; }
-        .badge--stale .dot { background: #f85149; box-shadow: 0 0 6px #f85149; }
+        .badge--fresh .dot { background: var(--success); box-shadow: 0 0 6px var(--success); animation: pulse 2s ease-in-out infinite; }
+        .badge--stale .dot { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
 
         @keyframes pulse {
           0%, 100% { opacity: 1; }
@@ -77,15 +77,15 @@ export function LastPacketBadge({ device }: LastPacketBadgeProps) {
         .body { display: flex; flex-direction: column; gap: 2px; }
 
         .row-top { display: flex; align-items: baseline; gap: 8px; }
-        .name { font-size: 12px; font-weight: 700; color: #c9d1d9; }
+        .name { font-size: 12px; font-weight: 700; color: var(--text); }
         .rel  { font-size: 11px; font-weight: 700; }
-        .badge--fresh .rel { color: #3fb950; }
-        .badge--stale .rel { color: #f85149; }
+        .badge--fresh .rel { color: var(--success); }
+        .badge--stale .rel { color: var(--danger); }
 
         .row-bottom { display: flex; align-items: center; gap: 6px; }
-        .loc { font-size: 10px; color: #8b949e; font-variant-numeric: tabular-nums; }
-        .sep { font-size: 10px; color: #30363d; }
-        .abs { font-size: 10px; color: #6e7681; font-variant-numeric: tabular-nums; }
+        .loc { font-size: 10px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+        .sep { font-size: 10px; color: var(--border-strong); }
+        .abs { font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
       `}</style>
     </div>
   );

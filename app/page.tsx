@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { useFlespiDevice } from "@/hooks/useFlespiDevice";
+import { useTheme }        from "@/hooks/useTheme";
 import { StatusBar }        from "@/components/StatusBar";
 import { Drawer }           from "@/components/Drawer";
 import { DeviceListPanel }  from "@/components/DeviceListPanel";
@@ -30,6 +31,7 @@ function readLastSelectedDevice(): number | null {
 
 export default function Home() {
   const { devices, connected, loading, error } = useFlespiDevice(MQTT_TOKEN, DEVICE_IDS);
+  const { theme, setTheme } = useTheme();
   const [selectedId, setSelectedId] = useState<number | null>(readLastSelectedDevice);
   const [dismissed,  setDismissed ] = useState<Set<number>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -60,6 +62,8 @@ export default function Home() {
           error={error}
           deviceCount={allDevices.length}
           onOpenDrawer={() => setDrawerOpen(true)}
+          theme={theme}
+          onThemeChange={setTheme}
         />
 
         <main className="map-area">
@@ -96,7 +100,7 @@ export default function Home() {
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
         *, *::before, *::after { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
-          font-family: "IBM Plex Mono", monospace; background: #0d1117; color: #c9d1d9; }
+          font-family: "IBM Plex Mono", monospace; background: var(--bg); color: var(--text); }
         @keyframes shimmer {
           0%,100% { background-position: 0% 50%; }
           50%      { background-position: 100% 50%; }
@@ -113,7 +117,7 @@ export default function Home() {
         .map-area { position: relative; overflow: hidden; min-height: 0; }
         .map-skeleton {
           width: 100%; height: 100%;
-          background: linear-gradient(135deg, #161b22 25%, #1c2128 50%, #161b22 75%);
+          background: linear-gradient(135deg, var(--bg-elevated) 25%, var(--bg-hover) 50%, var(--bg-elevated) 75%);
           background-size: 400% 400%;
           animation: shimmer 1.5s ease infinite;
         }
@@ -122,7 +126,7 @@ export default function Home() {
           font-size: 9px;
           font-weight: 700;
           letter-spacing: 0.1em;
-          color: #484f58;
+          color: var(--text-dim);
         }
       `}</style>
     </>

@@ -50,8 +50,8 @@ export function FallAlert({ deviceName, ts, onDismiss }: FallAlertProps) {
           display: flex;
           align-items: flex-start;
           gap: 8px;
-          background: #1a0a0a;
-          border: 1px solid #7a1f1c;
+          background: var(--danger-bg);
+          border: 1px solid var(--danger-border);
           border-radius: 6px;
           padding: 9px 10px;
           font-family: "IBM Plex Mono", monospace;
@@ -67,7 +67,7 @@ export function FallAlert({ deviceName, ts, onDismiss }: FallAlertProps) {
 
         .alert-icon {
           font-size: 16px;
-          color: #f85149;
+          color: var(--danger);
           line-height: 1;
           flex-shrink: 0;
           animation: icon-flash 1s steps(1) infinite;
@@ -86,14 +86,14 @@ export function FallAlert({ deviceName, ts, onDismiss }: FallAlertProps) {
         .alert-title {
           font-size: 10px;
           font-weight: 700;
-          color: #f85149;
+          color: var(--danger);
           letter-spacing: 0.08em;
           margin-bottom: 2px;
         }
 
         .alert-device {
           font-size: 12px;
-          color: #c9d1d9;
+          color: var(--text);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -101,14 +101,14 @@ export function FallAlert({ deviceName, ts, onDismiss }: FallAlertProps) {
 
         .alert-time {
           font-size: 9px;
-          color: #8b949e;
+          color: var(--text-muted);
           margin-top: 2px;
         }
 
         .alert-dismiss {
           background: none;
           border: none;
-          color: #8b949e;
+          color: var(--text-muted);
           font-size: 18px;
           line-height: 1;
           cursor: pointer;
@@ -117,7 +117,7 @@ export function FallAlert({ deviceName, ts, onDismiss }: FallAlertProps) {
           transition: color 0.15s;
         }
 
-        .alert-dismiss:hover { color: #f85149; }
+        .alert-dismiss:hover { color: var(--danger); }
       `}</style>
     </div>
   );

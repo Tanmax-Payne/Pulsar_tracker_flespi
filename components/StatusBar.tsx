@@ -1,6 +1,7 @@
 "use client";
 
 import { useNow } from "@/hooks/useNow";
+import { ThemeSwitcher } from "./ThemeSwitcher";
 
 interface StatusBarProps {
   mqttConnected: boolean;
@@ -8,9 +9,11 @@ interface StatusBarProps {
   error: string | null;
   deviceCount: number;
   onOpenDrawer: () => void;
+  theme: string;
+  onThemeChange: (id: string) => void;
 }
 
-export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDrawer }: StatusBarProps) {
+export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDrawer, theme, onThemeChange }: StatusBarProps) {
   const nowMs = useNow(10_000);
   const clock = new Date(nowMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -44,7 +47,7 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
         )}
       </div>
 
-      {/* right: error or clock, plus the drawer toggle */}
+      {/* right: error or clock, plus theme + drawer toggles */}
       <div className="status-right">
         {error ? (
           <span className="status-error" title={error}>
@@ -53,6 +56,7 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
         ) : (
           <span className="status-clock">{clock}</span>
         )}
+        <ThemeSwitcher theme={theme} onChange={onThemeChange} />
         <button className="drawer-toggle" onClick={onOpenDrawer} aria-label="Open devices & data panel">
           ☰ DATA
         </button>
@@ -65,8 +69,8 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
           align-items: center;
           padding: 0 14px;
           height: 40px;
-          background: #0d1117;
-          border-bottom: 1px solid #21262d;
+          background: var(--bg);
+          border-bottom: 1px solid var(--border);
           font-family: "IBM Plex Mono", "Fira Code", monospace;
           font-size: 11px;
           letter-spacing: 0.06em;
@@ -80,17 +84,17 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
         }
 
         .brand-icon {
-          color: #58a6ff;
+          color: var(--accent);
           font-size: 15px;
         }
 
         .brand-name {
           font-weight: 700;
-          color: #c9d1d9;
+          color: var(--text);
         }
 
         .brand-sub {
-          color: #484f58;
+          color: var(--text-dim);
           font-weight: 400;
         }
 
@@ -111,21 +115,21 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
         }
 
         .pill--live {
-          background: #0d2318;
-          color: #3fb950;
-          border: 1px solid #1a4d2e;
+          background: var(--success-bg);
+          color: var(--success);
+          border: 1px solid var(--success-border);
         }
 
         .pill--warn {
-          background: #2d2010;
-          color: #d29922;
-          border: 1px solid #4d3a10;
+          background: var(--warning-bg);
+          color: var(--warning);
+          border: 1px solid var(--warning-border);
         }
 
         .pill--neutral {
-          background: #161b22;
-          color: #8b949e;
-          border: 1px solid #21262d;
+          background: var(--bg-elevated);
+          color: var(--text-muted);
+          border: 1px solid var(--border);
         }
 
         .pill-dot {
@@ -149,7 +153,7 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
         .spinner {
           width: 8px;
           height: 8px;
-          border: 1.5px solid #d29922;
+          border: 1.5px solid var(--warning);
           border-top-color: transparent;
           border-radius: 50%;
           animation: spin 0.7s linear infinite;
@@ -168,9 +172,9 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
         }
 
         .drawer-toggle {
-          background: #161b22;
-          border: 1px solid #30363d;
-          color: #8b949e;
+          background: var(--bg-elevated);
+          border: 1px solid var(--border-strong);
+          color: var(--text-muted);
           border-radius: 4px;
           padding: 4px 9px;
           font-family: inherit;
@@ -179,10 +183,10 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
           letter-spacing: 0.05em;
           cursor: pointer;
         }
-        .drawer-toggle:hover { background: #1c2128; color: #c9d1d9; border-color: #388bfd; }
+        .drawer-toggle:hover { background: var(--bg-hover); color: var(--text); border-color: var(--accent-border); }
 
         .status-error {
-          color: #f85149;
+          color: var(--danger);
           max-width: 260px;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -190,7 +194,7 @@ export function StatusBar({ mqttConnected, loading, error, deviceCount, onOpenDr
         }
 
         .status-clock {
-          color: #484f58;
+          color: var(--text-dim);
           font-variant-numeric: tabular-nums;
         }
       `}</style>

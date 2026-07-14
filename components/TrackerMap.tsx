@@ -206,24 +206,24 @@ export default function TrackerMap({ devices, selectedId, onSelect, lastPacketDe
       <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1000 }}>
         <button
           onClick={() => setLayerMenuOpen(o => !o)}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: layerMenuOpen ? "#132235" : "#161b22", border: `1px solid ${layerMenuOpen ? "#58a6ff" : "#30363d"}`, color: layerMenuOpen ? "#58a6ff" : "#8b949e", borderRadius: 5, padding: "5px 10px", fontFamily: "IBM Plex Mono,monospace", fontSize: 10, fontWeight: 600, cursor: "pointer", letterSpacing: ".06em" }}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: layerMenuOpen ? "var(--bg-selected)" : "var(--bg-elevated)", border: `1px solid ${layerMenuOpen ? "var(--accent)" : "var(--border-strong)"}`, color: layerMenuOpen ? "var(--accent)" : "var(--text-muted)", borderRadius: 5, padding: "5px 10px", fontFamily: "IBM Plex Mono,monospace", fontSize: 10, fontWeight: 600, cursor: "pointer", letterSpacing: ".06em" }}
         >
           <Layers size={12} strokeWidth={2.25} />
           {BASE_LAYERS[activeLayer].name.toUpperCase()}
         </button>
 
         {layerMenuOpen && (
-          <div style={{ marginTop: 6, background: "#161b22", border: "1px solid #30363d", borderRadius: 6, overflow: "hidden", minWidth: 130, boxShadow: "0 4px 16px rgba(0,0,0,.4)" }}>
+          <div style={{ marginTop: 6, background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", borderRadius: 6, overflow: "hidden", minWidth: 130, boxShadow: "0 4px 16px rgba(0,0,0,.4)" }}>
             {LAYER_KEYS.map((key, i) => (
               <button
                 key={key}
                 onClick={() => switchLayer(key)}
                 style={{
                   display: "block", width: "100%", textAlign: "left",
-                  background: key === activeLayer ? "#132235" : "transparent",
-                  color: key === activeLayer ? "#58a6ff" : "#8b949e",
+                  background: key === activeLayer ? "var(--bg-selected)" : "transparent",
+                  color: key === activeLayer ? "var(--accent)" : "var(--text-muted)",
                   border: "none",
-                  borderBottom: i < LAYER_KEYS.length - 1 ? "1px solid #21262d" : "none",
+                  borderBottom: i < LAYER_KEYS.length - 1 ? "1px solid var(--border)" : "none",
                   padding: "7px 10px",
                   fontFamily: "IBM Plex Mono,monospace", fontSize: 10, fontWeight: 600,
                   letterSpacing: ".05em", cursor: "pointer",
@@ -258,7 +258,7 @@ export default function TrackerMap({ devices, selectedId, onSelect, lastPacketDe
         {selectedDevice && (
           <button
             onClick={() => setShowHistory(s => !s)}
-            style={{ background: showHistory ? "#132235" : "#161b22", border: `1px solid ${showHistory ? "#58a6ff" : "#30363d"}`, color: showHistory ? "#58a6ff" : "#8b949e", borderRadius: 5, padding: "5px 10px", fontFamily: "IBM Plex Mono,monospace", fontSize: 10, fontWeight: 600, cursor: "pointer", letterSpacing: ".06em" }}
+            style={{ background: showHistory ? "var(--bg-selected)" : "var(--bg-elevated)", border: `1px solid ${showHistory ? "var(--accent)" : "var(--border-strong)"}`, color: showHistory ? "var(--accent)" : "var(--text-muted)", borderRadius: 5, padding: "5px 10px", fontFamily: "IBM Plex Mono,monospace", fontSize: 10, fontWeight: 600, cursor: "pointer", letterSpacing: ".06em" }}
           >
             ⏱ HISTORY
           </button>
@@ -266,7 +266,7 @@ export default function TrackerMap({ devices, selectedId, onSelect, lastPacketDe
         {hasTrack && (
           <button
             onClick={clearTrack}
-            style={{ background: "#161b22", border: "1px solid #30363d", color: "#8b949e", borderRadius: 5, padding: "5px 10px", fontFamily: "IBM Plex Mono,monospace", fontSize: 10, cursor: "pointer" }}
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-strong)", color: "var(--text-muted)", borderRadius: 5, padding: "5px 10px", fontFamily: "IBM Plex Mono,monospace", fontSize: 10, cursor: "pointer" }}
           >
             ✕ CLEAR TRACK
           </button>
@@ -283,10 +283,10 @@ export default function TrackerMap({ devices, selectedId, onSelect, lastPacketDe
       </div>
 
       <style jsx global>{`
-        .leaflet-dark-tooltip { background:#161b22; border:1px solid #30363d; color:#c9d1d9; font-family:"IBM Plex Mono",monospace; font-size:11px; padding:3px 8px; border-radius:4px; box-shadow:none; }
-        .leaflet-dark-tooltip::before { border-top-color:#30363d; }
-        .leaflet-control-zoom a { background:#161b22 !important; color:#8b949e !important; border-color:#30363d !important; }
-        .leaflet-control-zoom a:hover { background:#1c2128 !important; color:#c9d1d9 !important; }
+        .leaflet-dark-tooltip { background:var(--bg-elevated); border:1px solid var(--border-strong); color:var(--text); font-family:"IBM Plex Mono",monospace; font-size:11px; padding:3px 8px; border-radius:4px; box-shadow:none; }
+        .leaflet-dark-tooltip::before { border-top-color:var(--border-strong); }
+        .leaflet-control-zoom a { background:var(--bg-elevated) !important; color:var(--text-muted) !important; border-color:var(--border-strong) !important; }
+        .leaflet-control-zoom a:hover { background:var(--bg-hover) !important; color:var(--text) !important; }
       `}</style>
     </div>
   );

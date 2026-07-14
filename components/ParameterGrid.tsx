@@ -77,7 +77,7 @@ export function ParameterGrid({ telemetry, latestMessage }: ParameterGridProps) 
           gap: 6px;
         }
 
-        .empty { font-size: 11px; color: #484f58; margin: 8px 0; }
+        .empty { font-size: 11px; color: var(--text-dim); margin: 8px 0; }
 
         .cell {
           border-radius: 5px;
@@ -87,19 +87,19 @@ export function ParameterGrid({ telemetry, latestMessage }: ParameterGridProps) 
         }
 
         .cell--fresh {
-          background: rgba(63, 185, 80, 0.08);
-          border-color: rgba(63, 185, 80, 0.35);
+          background: var(--success-bg);
+          border-color: var(--success-border);
         }
 
         .cell--stale {
-          background: rgba(248, 81, 73, 0.06);
-          border-color: rgba(248, 81, 73, 0.3);
+          background: var(--danger-bg-soft);
+          border-color: var(--danger-border);
         }
 
         .cell-label {
           font-family: "IBM Plex Mono", monospace;
           font-size: 8px;
-          color: #8b949e;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.06em;
           margin-bottom: 3px;
@@ -109,14 +109,14 @@ export function ParameterGrid({ telemetry, latestMessage }: ParameterGridProps) 
           font-family: "IBM Plex Mono", monospace;
           font-size: 13px;
           font-weight: 600;
-          color: #e6edf3;
+          color: var(--text-bright);
           font-variant-numeric: tabular-nums;
         }
 
         .cell-ts {
           font-family: "IBM Plex Mono", monospace;
           font-size: 9px;
-          color: #6e7681;
+          color: var(--text-dim);
           margin-top: 3px;
         }
       `}</style>

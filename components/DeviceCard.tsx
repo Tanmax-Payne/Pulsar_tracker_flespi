@@ -23,10 +23,10 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
 
   const batteryPct = battery != null ? Math.round(((battery - 3.2) / (4.2 - 3.2)) * 100) : null;
   const batteryColor =
-    batteryPct == null ? "#8b949e"
-    : batteryPct > 50 ? "#3fb950"
-    : batteryPct > 20 ? "#d29922"
-    : "#f85149";
+    batteryPct == null ? "var(--text-muted)"
+    : batteryPct > 50 ? "var(--success)"
+    : batteryPct > 20 ? "var(--warning)"
+    : "var(--danger)";
 
   const hasGps = lat != null && lng != null;
 
@@ -71,7 +71,7 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
         {satellites != null && (
           <div className="card-cell">
             <span className="cell-label">Sats</span>
-            <span className="cell-value" style={{ color: satellites < 4 ? "#d29922" : "#c9d1d9" }}>
+            <span className="cell-value" style={{ color: satellites < 4 ? "var(--warning)" : "var(--text)" }}>
               {satellites}
             </span>
           </div>
@@ -106,8 +106,8 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
           display: block;
           width: 100%;
           text-align: left;
-          background: #161b22;
-          border: 1px solid #21262d;
+          background: var(--bg-elevated);
+          border: 1px solid var(--border);
           border-radius: 6px;
           padding: 10px;
           cursor: pointer;
@@ -118,17 +118,17 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
         }
 
         .card:hover {
-          border-color: #388bfd;
-          background: #1c2128;
+          border-color: var(--accent-border);
+          background: var(--bg-hover);
         }
 
         .card--selected {
-          border-color: #58a6ff !important;
-          background: #131d2e !important;
+          border-color: var(--accent) !important;
+          background: var(--bg-selected) !important;
         }
 
         .card--fall {
-          border-color: #f85149;
+          border-color: var(--danger);
           animation: fall-pulse 2s ease-in-out infinite;
         }
 
@@ -147,7 +147,7 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
         .card-name {
           font-size: 12px;
           font-weight: 700;
-          color: #c9d1d9;
+          color: var(--text);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -167,8 +167,8 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
           letter-spacing: 0.06em;
         }
 
-        .badge--fall { background: #3d0f0e; color: #f85149; border: 1px solid #7a1f1c; }
-        .badge--stale { background: #2d2010; color: #d29922; border: 1px solid #4d3a10; }
+        .badge--fall { background: var(--danger-bg-soft); color: var(--danger); border: 1px solid var(--danger-border); }
+        .badge--stale { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
 
         .card-row {
           display: flex;
@@ -184,16 +184,16 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
           flex-shrink: 0;
         }
 
-        .gps-ok { background: #3fb950; box-shadow: 0 0 4px #3fb950; }
-        .gps-no { background: #484f58; }
+        .gps-ok { background: var(--success); box-shadow: 0 0 4px var(--success); }
+        .gps-no { background: var(--text-dim); }
 
         .card-coord {
           font-size: 10px;
-          color: #8b949e;
+          color: var(--text-muted);
           font-variant-numeric: tabular-nums;
         }
 
-        .card-muted { font-size: 10px; color: #484f58; }
+        .card-muted { font-size: 10px; color: var(--text-dim); }
 
         .card-grid {
           display: grid;
@@ -206,29 +206,29 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
           justify-content: space-between;
           align-items: baseline;
           padding: 2px 0;
-          border-bottom: 1px solid #21262d;
+          border-bottom: 1px solid var(--border);
         }
 
         .cell-label {
           font-size: 9px;
-          color: #484f58;
+          color: var(--text-dim);
           letter-spacing: 0.06em;
           text-transform: uppercase;
         }
 
         .cell-value {
           font-size: 11px;
-          color: #c9d1d9;
+          color: var(--text);
           font-variant-numeric: tabular-nums;
         }
 
-        .cell-value small { font-size: 9px; color: #8b949e; }
+        .cell-value small { font-size: 9px; color: var(--text-muted); }
 
         .card-fall-ts {
           margin-top: 5px;
           font-size: 9px;
-          color: #f85149;
-          border-top: 1px solid #3d0f0e;
+          color: var(--danger);
+          border-top: 1px solid var(--danger-bg-soft);
           padding-top: 4px;
         }
 
@@ -239,8 +239,8 @@ export function DeviceCard({ device, selected, onSelect }: DeviceCardProps) {
           font-weight: 600;
         }
 
-        .lastseen--fresh { color: #3fb950; }
-        .lastseen--stale { color: #f85149; }
+        .lastseen--fresh { color: var(--success); }
+        .lastseen--stale { color: var(--danger); }
       `}</style>
     </button>
   );

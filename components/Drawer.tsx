@@ -37,8 +37,8 @@ export function Drawer({ open, onClose, children }: DrawerProps) {
           right: 0;
           bottom: 0;
           width: min(360px, 92vw);
-          background: #0d1117;
-          border-left: 1px solid #21262d;
+          background: var(--bg);
+          border-left: 1px solid var(--border);
           z-index: 1500;
           transform: translateX(100%);
           transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -57,7 +57,7 @@ export function Drawer({ open, onClose, children }: DrawerProps) {
           right: 10px;
           background: none;
           border: none;
-          color: #8b949e;
+          color: var(--text-muted);
           font-size: 22px;
           line-height: 1;
           cursor: pointer;
@@ -65,7 +65,7 @@ export function Drawer({ open, onClose, children }: DrawerProps) {
           z-index: 1;
         }
 
-        .close:hover { color: #c9d1d9; }
+        .close:hover { color: var(--text); }
 
         .content {
           flex: 1;
@@ -75,7 +75,7 @@ export function Drawer({ open, onClose, children }: DrawerProps) {
           flex-direction: column;
           gap: 18px;
           scrollbar-width: thin;
-          scrollbar-color: #30363d transparent;
+          scrollbar-color: var(--border-strong) transparent;
         }
       `}</style>
     </>

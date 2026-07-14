@@ -92,24 +92,24 @@ export function DeviceListPanel({ devices, selectedId, onSelect }: DeviceListPan
         .panel { display: flex; flex-direction: column; gap: 8px; }
 
         .search {
-          background: #161b22;
-          border: 1px solid #30363d;
+          background: var(--bg-elevated);
+          border: 1px solid var(--border-strong);
           border-radius: 5px;
-          color: #c9d1d9;
+          color: var(--text);
           font-family: inherit;
           font-size: 11px;
           padding: 6px 8px;
           width: 100%;
         }
-        .search:focus { outline: none; border-color: #58a6ff; }
-        .search::placeholder { color: #484f58; }
+        .search:focus { outline: none; border-color: var(--accent); }
+        .search::placeholder { color: var(--text-dim); }
 
         .filters { display: flex; gap: 4px; flex-wrap: wrap; }
 
         .chip {
-          background: #161b22;
-          border: 1px solid #30363d;
-          color: #8b949e;
+          background: var(--bg-elevated);
+          border: 1px solid var(--border-strong);
+          color: var(--text-muted);
           border-radius: 4px;
           padding: 3px 8px;
           font-family: inherit;
@@ -118,23 +118,23 @@ export function DeviceListPanel({ devices, selectedId, onSelect }: DeviceListPan
           letter-spacing: 0.05em;
           cursor: pointer;
         }
-        .chip--active { background: #132235; border-color: #58a6ff; color: #58a6ff; }
+        .chip--active { background: var(--bg-selected); border-color: var(--accent); color: var(--accent); }
 
         .sort-row { display: flex; align-items: center; gap: 8px; }
-        .sort-label { font-size: 9px; color: #484f58; letter-spacing: 0.08em; }
+        .sort-label { font-size: 9px; color: var(--text-dim); letter-spacing: 0.08em; }
         .sort-select {
           flex: 1;
-          background: #161b22;
-          border: 1px solid #30363d;
+          background: var(--bg-elevated);
+          border: 1px solid var(--border-strong);
           border-radius: 4px;
-          color: #c9d1d9;
+          color: var(--text);
           font-family: inherit;
           font-size: 10px;
           padding: 4px 6px;
         }
 
         .list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
-        .empty { font-size: 11px; color: #484f58; margin: 8px 0; }
+        .empty { font-size: 11px; color: var(--text-dim); margin: 8px 0; }
       `}</style>
     </div>
   );

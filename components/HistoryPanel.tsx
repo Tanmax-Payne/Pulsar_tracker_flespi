@@ -161,44 +161,44 @@ export function HistoryPanel({ deviceId, onTrack, onClose }: HistoryPanelProps) 
       {(err || status === "error") && <p className="bad">{err}</p>}
 
       <style jsx>{`
-        .panel { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px; font-family:"IBM Plex Mono",monospace; font-size:11px; display:flex; flex-direction:column; gap:6px; }
+        .panel { background:var(--bg-elevated); border:1px solid var(--border-strong); border-radius:6px; padding:10px; font-family:"IBM Plex Mono",monospace; font-size:11px; display:flex; flex-direction:column; gap:6px; }
         .row-hdr { display:flex; justify-content:space-between; align-items:center; }
-        .title { font-size:10px; font-weight:700; letter-spacing:.08em; color:#58a6ff; }
-        .close { background:none; border:none; color:#8b949e; font-size:18px; cursor:pointer; padding:0; line-height:1; }
-        .close:hover { color:#c9d1d9; }
+        .title { font-size:10px; font-weight:700; letter-spacing:.08em; color:var(--accent); }
+        .close { background:none; border:none; color:var(--text-muted); font-size:18px; cursor:pointer; padding:0; line-height:1; }
+        .close:hover { color:var(--text); }
 
-        .range-label { margin:0; font-size:10px; color:#8b949e; text-align:center; }
+        .range-label { margin:0; font-size:10px; color:var(--text-muted); text-align:center; }
 
         .presets { display:flex; gap:4px; flex-wrap:wrap; }
         .chip {
           flex: 1;
           min-width: 38px;
-          background:#0d1117; border:1px solid #30363d; border-radius:4px;
-          color:#8b949e; font-family:inherit; font-size:10px; font-weight:600;
+          background:var(--bg); border:1px solid var(--border-strong); border-radius:4px;
+          color:var(--text-muted); font-family:inherit; font-size:10px; font-weight:600;
           padding:5px 0; cursor:pointer;
         }
-        .chip:hover:not(:disabled) { border-color:#388bfd; color:#c9d1d9; }
-        .chip--active { background:#132235; border-color:#58a6ff; color:#58a6ff; }
+        .chip:hover:not(:disabled) { border-color:var(--accent-border); color:var(--text); }
+        .chip--active { background:var(--bg-selected); border-color:var(--accent); color:var(--accent); }
         .chip:disabled { opacity:.5; cursor:not-allowed; }
 
         .custom-toggle {
-          background:none; border:none; color:#484f58; font-family:inherit;
+          background:none; border:none; color:var(--text-dim); font-family:inherit;
           font-size:9px; letter-spacing:.05em; cursor:pointer; padding:2px 0; text-align:left;
         }
-        .custom-toggle:hover { color:#8b949e; }
+        .custom-toggle:hover { color:var(--text-muted); }
 
         .custom { display:flex; flex-direction:column; gap:6px; padding-top:2px; }
         .field { display:flex; flex-direction:column; gap:2px; }
-        .label { font-size:9px; color:#8b949e; letter-spacing:.06em; }
-        .input { background:#0d1117; border:1px solid #30363d; border-radius:4px; color:#c9d1d9; font-family:inherit; font-size:10px; padding:4px 6px; width:100%; color-scheme:dark; }
-        .input:focus { outline:none; border-color:#58a6ff; }
-        .btn { background:#1c2128; border:1px solid #388bfd; border-radius:4px; color:#58a6ff; font-family:inherit; font-size:11px; font-weight:600; padding:5px; cursor:pointer; }
-        .btn:hover:not(:disabled) { background:#132235; }
+        .label { font-size:9px; color:var(--text-muted); letter-spacing:.06em; }
+        .input { background:var(--bg); border:1px solid var(--border-strong); border-radius:4px; color:var(--text); font-family:inherit; font-size:10px; padding:4px 6px; width:100%; color-scheme: var(--color-scheme, dark); }
+        .input:focus { outline:none; border-color:var(--accent); }
+        .btn { background:var(--bg-hover); border:1px solid var(--accent-border); border-radius:4px; color:var(--accent); font-family:inherit; font-size:11px; font-weight:600; padding:5px; cursor:pointer; }
+        .btn:hover:not(:disabled) { background:var(--bg-selected); }
         .btn:disabled { opacity:.5; cursor:not-allowed; }
 
-        .hint { margin:0; font-size:10px; color:#8b949e; text-align:center; }
-        .ok  { margin:0; font-size:10px; color:#3fb950; text-align:center; }
-        .bad { margin:0; font-size:10px; color:#f85149; word-break:break-word; text-align:center; }
+        .hint { margin:0; font-size:10px; color:var(--text-muted); text-align:center; }
+        .ok  { margin:0; font-size:10px; color:var(--success); text-align:center; }
+        .bad { margin:0; font-size:10px; color:var(--danger); word-break:break-word; text-align:center; }
       `}</style>
     </div>
   );
