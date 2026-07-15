@@ -82,6 +82,11 @@ export default function TrackerMap({ devices, selectedId, onSelect, alerts, onDi
   // touch mapRef.current need to know when it's actually populated,
   // not just re-run when their own props change.
   const [mapReady, setMapReady] = useState(false);
+  // The very first time the selected device's position becomes known,
+  // the map should center+zoom onto it (not just sit at the fallback
+  // world view) — but only once, so it doesn't yank the view out from
+  // under someone who's panned around on their own afterward.
+  const didInitialCenter = useRef(false);
 
   // ── mount ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -172,11 +177,20 @@ export default function TrackerMap({ devices, selectedId, onSelect, alerts, onDi
     })();
   }, [devices, selectedId, onSelect, mapReady]);
 
-  // ── pan to selected ─────────────────────────────────────────────────────
+  // ── center on selected ──────────────────────────────────────────────────
+  // First time: hard center+zoom onto the last known location. After that,
+  // just follow it with a smooth pan at whatever zoom the user has chosen.
   useEffect(() => {
     if (!mapRef.current || !selectedId) return;
     const m = markersRef.current.get(selectedId);
-    if (m) mapRef.current.panTo(m.getLatLng(), { animate: true, duration: 0.5 });
+    if (!m) return;
+
+    if (!didInitialCenter.current) {
+      mapRef.current.setView(m.getLatLng(), 15, { animate: false });
+      didInitialCenter.current = true;
+    } else {
+      mapRef.current.panTo(m.getLatLng(), { animate: true, duration: 0.5 });
+    }
   }, [selectedId, mapReady, devices]);
 
   // ── history track ───────────────────────────────────────────────────────
