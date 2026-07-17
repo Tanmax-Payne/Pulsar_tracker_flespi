@@ -23,7 +23,7 @@ const MQTT_LABEL: Record<MqttStatus, string> = {
 
 export function StatusBar({ mqttStatus, loading, error, deviceCount, onOpenDrawer, theme, onThemeChange }: StatusBarProps) {
   const nowMs = useNow(10_000);
-  const clock = new Date(nowMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const clock = nowMs == null ? "--:--" : new Date(nowMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const mqttPillClass = mqttStatus === "connected" ? "pill--live" : mqttStatus === "no-token" ? "pill--danger" : "pill--warn";
 
   return (

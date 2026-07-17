@@ -12,8 +12,8 @@ interface LastPacketBadgeProps {
   onSelect: (id: number) => void;
 }
 
-function formatAbsolute(ts: number | null, nowMs: number): string {
-  if (ts == null) return "—";
+function formatAbsolute(ts: number | null, nowMs: number | null): string {
+  if (ts == null || nowMs == null) return "—";
   const d = new Date(ts * 1000);
   const sameDay = d.toDateString() === new Date(nowMs).toDateString();
   const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });

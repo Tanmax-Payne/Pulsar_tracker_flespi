@@ -16,13 +16,16 @@ export function latestTelemetryTs(telemetry: Telemetry): number | null {
   return max;
 }
 
-export function isFresh(ts: number | null | undefined, nowMs: number, thresholdSec = FRESH_THRESHOLD_SEC): boolean {
-  if (ts == null) return false;
+// nowMs is null until the client has mounted (see useNow) — treat that
+// the same as "no timestamp": nothing can be judged fresh yet, and
+// nothing has a relative time to show yet.
+export function isFresh(ts: number | null | undefined, nowMs: number | null, thresholdSec = FRESH_THRESHOLD_SEC): boolean {
+  if (ts == null || nowMs == null) return false;
   return nowMs / 1000 - ts <= thresholdSec;
 }
 
-export function relativeTime(ts: number | null | undefined, nowMs: number): string {
-  if (ts == null) return "—";
+export function relativeTime(ts: number | null | undefined, nowMs: number | null): string {
+  if (ts == null || nowMs == null) return "—";
   const diff = Math.max(0, Math.floor(nowMs / 1000 - ts));
   if (diff < 1) return "just now";
   if (diff < 60) return `${diff}s ago`;
